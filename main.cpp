@@ -5,7 +5,7 @@
 #include <string>
 
 enum Opcodes {
-    MOV_REG_MEMORY = 0b100010,
+    MOV_REG_TO_REG = 0b100010,
     SENTINEL
 };
 
@@ -21,7 +21,7 @@ struct MovInst {
     u8 rm() const { return byte2 & 0b111; }
 };
 
-bool serializeRegs(u32 r, u32 w, std::string& out) {
+bool decodeRegs(u32 r, u32 w, std::string& out) {
     switch (r) {
         case 0b000: out += (w == 0) ? "al" : "ax"; break;
         case 0b001: out += (w == 0) ? "cl" : "cx"; break;
@@ -36,12 +36,12 @@ bool serializeRegs(u32 r, u32 w, std::string& out) {
     return true;
 }
 
-bool toAsm(MovInst& inst, std::string& out) {
+bool decode(MovInst& inst, std::string& out) {
     out += "mov ";
-    if (bool ok = serializeRegs(inst.rm(), inst.w(), out); !ok) return false;
+    if (bool ok = decodeRegs(inst.rm(), inst.w(), out); !ok) return false;
     out += ", ";
     if (inst.mod() == 0b11) {
-        if (bool ok = serializeRegs(inst.reg(), inst.w(), out); !ok) return false;
+        if (bool ok = decodeRegs(inst.reg(), inst.w(), out); !ok) return false;
     } else {
         Assert(false, "not implemented yet");
     }
@@ -64,7 +64,7 @@ i32 main(i32 argc, char const** argv) {
         MovInst mov;
         mov.byte1 = binaryData[i];
         mov.byte2 = binaryData[i+1];
-        Assert(toAsm(mov, out));
+        Assert(decode(mov, out));
     }
 
     fmt::print("{}\n", out.data());

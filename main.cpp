@@ -9,6 +9,8 @@ enum Opcodes {
     SENTINEL
 };
 
+// NOTE: Machine instruction encoding and decoding is described on page 160 in the manual.
+
 struct MovInst {
     u8 byte1;
     u8 byte2;
@@ -51,7 +53,6 @@ bool decode(MovInst& inst, std::string& out) {
 
 i32 main(i32 argc, char const** argv) {
     initCore(argc, argv);
-
 
     auto binaryData = ValueOrDie(core::file_read_full(g_cmdLineArgs.fileName, O_RDONLY, 0666));
     std::string out = "bits 16\n";

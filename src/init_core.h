@@ -10,7 +10,6 @@
 using namespace coretypes;
 
 static core::std_stats_allocator g_stdAlloc;
-
 struct std_allocator_static {
     static void* alloc(ptr_size size) noexcept;
 
@@ -26,4 +25,11 @@ struct std_allocator_static {
 #include <core.h>
 #include <std/core.h>
 
-void initCore();
+void initCore(i32 argc, const char** argv);
+
+struct command_line_args {
+    char* fileName;
+    i32 fileNameLen;
+};
+
+extern command_line_args g_cmdLineArgs;

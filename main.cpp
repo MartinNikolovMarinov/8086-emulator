@@ -50,15 +50,10 @@ bool decode(MovInst& inst, std::string& out) {
 }
 
 i32 main(i32 argc, char const** argv) {
-    initCore();
+    initCore(argc, argv);
 
-    if (argc != 2) {
-        fmt::print("Program requires exactly one argument as a file name to the executable\n");
-        return 1;
-    }
 
-    char const* fileName = argv[1];
-    auto binaryData = ValueOrDie(core::readFull(fileName, O_RDONLY, 0666));
+    auto binaryData = ValueOrDie(core::file_read_full(g_cmdLineArgs.fileName, O_RDONLY, 0666));
     std::string out = "bits 16\n";
     for (i32 i = 0; i < binaryData.len(); i+=2) {
         MovInst mov;

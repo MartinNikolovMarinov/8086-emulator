@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/main",
             "args": [
-                "${workspaceFolder}/build/02_multiple_move_inst",
+                "-f", "${workspaceFolder}/build/02_multiple_move_inst",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

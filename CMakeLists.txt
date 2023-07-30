@@ -15,40 +15,32 @@ add_executable(${PROJECT_NAME}
     src/init_core.cpp
 )
 
-# Compilation options:
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Common flags:
-    target_compile_options(${PROJECT_NAME} PRIVATE
-        -Wall -Wextra -Wno-unknown-pragmas
-    )
+# BEGIN Compile Options
 
-    if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Release flags:
-        target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -O3)
-    elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Debug flags:
-        target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -O0 -g -ggdb)
-    else()
-        message(FATAL_ERROR "Unsupported build type!")
-    endif()
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    # Common flags:
-    target_compile_options(${PROJECT_NAME} PRIVATE
-        /std:c++17 /nologo /FC /EHa /W4
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(mm_flags -std=c++17 -Wall -Wextra -Wno-unknown-pragmas -Wno-unused-function)
+    set(mm_core_debug_flags -O0 -g -ggdb)
+    set(mm_core_release_flags)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(mm_flags
+        /std:c++17
+        /nologo /FC
+        /W4
+        /EHsc
     )
-
-    if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Debug flags:
-        target_compile_options(${PROJECT_NAME} PRIVATE /O0 /Zi /Od /Oi)
-    elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Release flags:
-        target_compile_options(${PROJECT_NAME} PRIVATE /O2)
-    else()
-        message(FATAL_ERROR "Unsupported build type!")
-    endif()
+    set(mm_core_debug_flags /O0 /Zi /Od /Oi)
+    set(mm_core_release_flags /O2)
 else()
-    message(FATAL_ERROR "Unsupported compiler!")
+    message(FATAL_ERROR "Unsupported compiler")
 endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(${PROJECT_NAME} PRIVATE ${mm_flags} ${mm_core_debug_flags})
+else()
+    target_compile_options(${PROJECT_NAME} PRIVATE ${mm_flags} ${mm_core_release_flags})
+endif()
+
+# END Compile Options
 
 # Definitions:
 target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -61,9 +53,14 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt/include)
 
 # Core library:
+option(CORE_DEBUG "" ON)
+option(CORE_ASSERT_ENABLED "" ON)
+option(CORE_LIBRARY_SHARED "" ON)
+option(CORE_BUILD_TESTS "" OFF)
+option(RUN_COMPILETIME_TESTS "" OFF)
 option(CORE_LIBRARY_SHARED "" ON)
 target_link_libraries(${PROJECT_NAME} PRIVATE core)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/core/src ${CMAKE_CURRENT_BINARY_DIR}/core)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/core ${CMAKE_CURRENT_BINARY_DIR}/core)
 
 # Inlcude path:
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC

@@ -348,12 +348,37 @@ struct MovInst_v3 {
     }
 };
 
+struct MovInst_v4 {
+    u8 w : 1;
+    u8 d : 1;
+    u16 addr : 16;
+
+    void encode(core::str_builder<>& sb) const {
+        sb.append("mov ");
+        if (d) {
+            sb.append("[");
+            appendIntToSb(sb, addr);
+            sb.append("]");
+            sb.append(", ");
+            sb.append("ax");
+        }
+        else {
+            sb.append("ax");
+            sb.append(", ");
+            sb.append("[");
+            appendIntToSb(sb, addr);
+            sb.append("]");
+        }
+    }
+};
+
 struct Inst8086 {
     Opcode opcode;
     union {
         MovInst_v1 movRegOrMemToOrFromReg;
         MovInst_v2 movImmToRegOrMem;
         MovInst_v3 movImmToReg;
+        MovInst_v4 movMemToAcc;
     };
 
     void encode(core::str_builder<>& sb) const {
@@ -361,6 +386,7 @@ struct Inst8086 {
             case MOV_REG_OR_MEM_TO_OR_FROM_REG: movRegOrMemToOrFromReg.encode(sb); break;
             case MOV_IMM_TO_REG:                movImmToReg.encode(sb);            break;
             case MOV_IMM_TO_REG_OR_MEM:         movImmToRegOrMem.encode(sb);       break;
+            case MOV_MEM_TO_ACC:                movMemToAcc.encode(sb);            break;
             default:                            Panic(false, "Opcode unsupported or invalid");
         }
     }
@@ -397,6 +423,12 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             return i16(u16(byte4 << 8) | u16(byte3));
         }
         return 0;
+    };
+
+    auto addr = [](auto& bytes, i32& idx) -> u16 {
+        u8 byte2 = bytes[idx++];
+        u8 byte3 = bytes[idx++];
+        return u16(byte3 << 8) | u16(byte2);
     };
 
     u8 byte1 = bytes[idx++];
@@ -436,12 +468,16 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             res.movRegOrMemToOrFromReg = inst;
             return res;
         }
-        case MOV_MEM_TO_ACC:
-            Assert(false, "Not implemented");
-            return res;
+        case MOV_MEM_TO_ACC: [[fallthrough]];
         case MOV_ACC_TO_MEM:
-            Assert(false, "Not implemented");
+        {
+            MovInst_v4 inst = {};
+            inst.w = w(byte1);
+            inst.addr = addr(bytes, idx);
+            inst.d = d(byte1);
+            res.movMemToAcc = inst;
             return res;
+        }
         case MOV_IMM_TO_REG_OR_MEM:
         {
             u8 byte2 = bytes[idx++];

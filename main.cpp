@@ -162,27 +162,101 @@ enum Mod : u8 {
     MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT = 0b11,
 };
 
+const char* regToCptr(u8 reg, u8 w) {
+    if (w) {
+        switch(reg) {
+            case 0b000: return "ax";
+            case 0b001: return "cx";
+            case 0b010: return "dx";
+            case 0b011: return "bx";
+            case 0b100: return "sp";
+            case 0b101: return "bp";
+            case 0b110: return "si";
+            case 0b111: return "di";
+        }
+    }
+    else {
+        switch(reg) {
+            case 0b000: return "al";
+            case 0b001: return "cl";
+            case 0b010: return "dl";
+            case 0b011: return "bl";
+            case 0b100: return "ah";
+            case 0b101: return "ch";
+            case 0b110: return "dh";
+            case 0b111: return "bh";
+        }
+    }
+
+    Panic(false, "Invalid register");
+    return "INVALID REGISTER";
+}
+
 struct MovInst_v1 {
     u8 d : 1;
     u8 w : 1;
     u8 reg : 3;
     u8 rm : 3;
     Mod mod : 2;
-    u16 disp : 16;
+    i16 disp : 16;
 
     void encode(core::str_builder<>& sb) const {
         sb.append("mov ");
 
         if (mod == MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT) {
             if (d) {
-                encodeReg(sb, reg);
+                sb.append(regToCptr(reg, w));
                 sb.append(", ");
-                encodeReg(sb, rm);
+                sb.append(regToCptr(rm, w));
             }
             else {
-                encodeReg(sb, rm);
+                sb.append(regToCptr(rm, w));
                 sb.append(", ");
-                encodeReg(sb, reg);
+                sb.append(regToCptr(reg, w));
+            }
+        }
+        else if (mod == MOD_MEMORY_NO_DISPLACEMENT) {
+            if (d) {
+                sb.append(regToCptr(reg, w));
+                sb.append(", ");
+                sb.append("[");
+                encodeRegWithCalc(sb);
+                sb.append("]");
+            }
+            else {
+                sb.append("[");
+                encodeRegWithCalc(sb);
+                sb.append("]");
+                sb.append(", ");
+                sb.append(regToCptr(reg, w));
+            }
+        }
+        else if (mod == MOD_MEMORY_8_BIT_DISPLACEMENT || mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
+            if (d) {
+                sb.append(regToCptr(reg, w));
+                sb.append(", ");
+                sb.append("[");
+                encodeRegWithCalc(sb);
+                if (disp != 0) {
+                    sb.append(disp > 0 ? " + " : " - ");
+                    char dispCptr[15] = {};
+                    core::int_to_cptr(core::abs_slow(disp), dispCptr);
+                    sb.append(dispCptr);
+                }
+                sb.append("]");
+            }
+            else {
+                sb.append("[");
+                encodeRegWithCalc(sb);
+                if (disp != 0) {
+                    sb.append(disp > 0 ? " + " : " - ");
+                    char dispCptr[15] = {};
+                    core::int_to_cptr(core::abs_slow(disp), dispCptr);
+                    sb.append(dispCptr);
+                }
+                sb.append("]");
+                sb.append(", ");
+                sb.append(regToCptr(reg, w));
             }
         }
         else {
@@ -191,33 +265,18 @@ struct MovInst_v1 {
     }
 
 private:
-
-    void encodeReg(core::str_builder<>& sb, u8 reg) const {
-        if (w) {
-            switch(reg) {
-                case 0b000: sb.append("ax"); break;
-                case 0b001: sb.append("cx"); break;
-                case 0b010: sb.append("dx"); break;
-                case 0b011: sb.append("bx"); break;
-                case 0b100: sb.append("sp"); break;
-                case 0b101: sb.append("bp"); break;
-                case 0b110: sb.append("si"); break;
-                case 0b111: sb.append("di"); break;
-                default: Panic(false, "Invalid register");
-            }
-        }
-        else {
-            switch(reg) {
-                case 0b000: sb.append("al"); break;
-                case 0b001: sb.append("cl"); break;
-                case 0b010: sb.append("dl"); break;
-                case 0b011: sb.append("bl"); break;
-                case 0b100: sb.append("ah"); break;
-                case 0b101: sb.append("ch"); break;
-                case 0b110: sb.append("dh"); break;
-                case 0b111: sb.append("bh"); break;
-                default: Panic(false, "Invalid register");
-            }
+    void encodeRegWithCalc(core::str_builder<>& sb) const {
+        // TODO: I don't think this is correct ! It should be possible to use 8-bit registers.
+        switch (rm) {
+            case 0b000: sb.append("bx + si"); break;
+            case 0b001: sb.append("bx + di"); break;
+            case 0b010: sb.append("bp + si"); break;
+            case 0b011: sb.append("bp + di"); break;
+            case 0b100: sb.append("si"); break;
+            case 0b101: sb.append("di"); break;
+            case 0b110: sb.append("bp"); break;
+            case 0b111: sb.append("bx"); break;
+            default: Panic(false, "Invalid register");
         }
     }
 };
@@ -229,42 +288,11 @@ struct MovInst_v3 {
 
     void encode(core::str_builder<>& sb) const {
         sb.append("mov ");
-        encodeReg(sb, reg);
+        sb.append(regToCptr(reg, w));
         sb.append(", ");
-        char dataToStr[15] = {};
-        core::int_to_cptr(data, dataToStr);
-        sb.append(dataToStr);
-    }
-
-private:
-
-    void encodeReg(core::str_builder<>& sb, u8 reg) const {
-        if (w) {
-            switch(reg) {
-                case 0b000: sb.append("ax"); break;
-                case 0b001: sb.append("cx"); break;
-                case 0b010: sb.append("dx"); break;
-                case 0b011: sb.append("bx"); break;
-                case 0b100: sb.append("sp"); break;
-                case 0b101: sb.append("bp"); break;
-                case 0b110: sb.append("si"); break;
-                case 0b111: sb.append("di"); break;
-                default: Panic(false, "Invalid register");
-            }
-        }
-        else {
-            switch(reg) {
-                case 0b000: sb.append("al"); break;
-                case 0b001: sb.append("cl"); break;
-                case 0b010: sb.append("dl"); break;
-                case 0b011: sb.append("bl"); break;
-                case 0b100: sb.append("ah"); break;
-                case 0b101: sb.append("ch"); break;
-                case 0b110: sb.append("dh"); break;
-                case 0b111: sb.append("bh"); break;
-                default: Panic(false, "Invalid register");
-            }
-        }
+        char dataCptr[15] = {};
+        core::int_to_cptr(data, dataCptr);
+        sb.append(dataCptr);
     }
 };
 
@@ -300,8 +328,9 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
         case MOV_IMM_TO_REG:
         {
             MovInst_v3 inst = {};
-            inst.w = (byte1 >> 3) & 0b1; // For this command w is in the first byte!
-            inst.reg = reg(byte1);
+            // For this command w and reg are in the first byte.
+            inst.w = (byte1 >> 3) & 0b1;
+            inst.reg = byte1 & 0b111;
 
             if (inst.w == 0) {
                 u8 byte2 = bytes[idx++];
@@ -310,7 +339,7 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             else {
                 u8 byte2 = bytes[idx++];
                 u8 byte3 = bytes[idx++];
-                inst.data = i16(byte3 << 8) | i16(byte2);
+                inst.data = i16(u16(byte3 << 8) | u16(byte2));
             }
 
             res.movImmToReg = inst;
@@ -328,12 +357,12 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
 
             if (inst.mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
                 u8 byte3 = bytes[idx++];
-                inst.disp = u16(byte3);
+                inst.disp = u16(i8(byte3));
             }
             else if (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
                 u8 byte3 = bytes[idx++];
                 u8 byte4 = bytes[idx++];
-                inst.disp = u16(byte4 << 8) | u16(byte3);
+                inst.disp = i16(u16(byte4 << 8) | u16(byte3));
             }
 
             res.movRegOrMemToOrFromReg = inst;

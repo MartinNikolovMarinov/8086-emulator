@@ -210,9 +210,9 @@ const char* rmEffectiveAddrCalc(u8 rm) {
 }
 
 void appendIntToSb(core::str_builder<>& sb, i16 i) {
-    char dispCptr[8] = {};
-    core::int_to_cptr(i, dispCptr);
-    sb.append(dispCptr);
+    char ncptr[8] = {};
+    core::int_to_cptr(i, ncptr);
+    sb.append(ncptr);
 }
 
 struct MovInst_v1 {
@@ -291,6 +291,37 @@ struct MovInst_v2 {
 
     void encode(core::str_builder<>& sb) const {
         sb.append("mov ");
+
+        if (mod == MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT) {
+            sb.append(regToCptr(rm, w));
+            sb.append(", ");
+            sb.append(w ? "word" : "byte");
+            sb.append(" ");
+            appendIntToSb(sb, data);
+        }
+        else if (mod == MOD_MEMORY_NO_DISPLACEMENT) {
+            sb.append("[");
+            sb.append(rmEffectiveAddrCalc(rm));
+            sb.append("]");
+            sb.append(", ");
+            sb.append(w ? "word" : "byte");
+            sb.append(" ");
+            appendIntToSb(sb, data);
+        }
+        else {
+            // 8 or 16 bit displacement.
+            sb.append("[");
+            sb.append(rmEffectiveAddrCalc(rm));
+            if (disp != 0) {
+                sb.append(disp > 0 ? " + " : " - ");
+                appendIntToSb(sb, core::abs_slow(disp));
+            }
+            sb.append("]");
+            sb.append(", ");
+            sb.append(w ? "word" : "byte");
+            sb.append(" ");
+            appendIntToSb(sb, data);
+        }
     }
 };
 
@@ -303,9 +334,7 @@ struct MovInst_v3 {
         sb.append("mov ");
         sb.append(regToCptr(reg, w));
         sb.append(", ");
-        char dataCptr[15] = {};
-        core::int_to_cptr(data, dataCptr);
-        sb.append(dataCptr);
+        appendIntToSb(sb, data);
     }
 };
 
@@ -321,6 +350,7 @@ struct Inst8086 {
         switch (opcode) {
             case MOV_REG_OR_MEM_TO_OR_FROM_REG: movRegOrMemToOrFromReg.encode(sb); break;
             case MOV_IMM_TO_REG:                movImmToReg.encode(sb);            break;
+            case MOV_IMM_TO_REG_OR_MEM:         movImmToRegOrMem.encode(sb);       break;
             default:                            Panic(false, "Opcode unsupported or invalid");
         }
     }

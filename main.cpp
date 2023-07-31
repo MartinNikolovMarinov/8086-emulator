@@ -192,6 +192,29 @@ const char* regToCptr(u8 reg, u8 w) {
     return "INVALID REGISTER";
 }
 
+const char* rmEffectiveAddrCalc(u8 rm) {
+    // TODO: I don't think this is implemented correctly. You should be able to use any of the registers, even 8 bit ones.
+    switch (rm) {
+        case 0b000: return "bx + si";
+        case 0b001: return "bx + di";
+        case 0b010: return "bp + si";
+        case 0b011: return "bp + di";
+        case 0b100: return "si";
+        case 0b101: return "di";
+        case 0b110: return "bp";
+        case 0b111: return "bx";
+    }
+
+    Panic(false, "Invalid register");
+    return "INVALID REGISTER";
+}
+
+void appendIntToSb(core::str_builder<>& sb, i16 i) {
+    char dispCptr[8] = {};
+    core::int_to_cptr(i, dispCptr);
+    sb.append(dispCptr);
+}
+
 struct MovInst_v1 {
     u8 d : 1;
     u8 w : 1;
@@ -220,64 +243,54 @@ struct MovInst_v1 {
                 sb.append(regToCptr(reg, w));
                 sb.append(", ");
                 sb.append("[");
-                encodeRegWithCalc(sb);
+                sb.append(rmEffectiveAddrCalc(rm));
                 sb.append("]");
             }
             else {
                 sb.append("[");
-                encodeRegWithCalc(sb);
-                sb.append("]");
-                sb.append(", ");
-                sb.append(regToCptr(reg, w));
-            }
-        }
-        else if (mod == MOD_MEMORY_8_BIT_DISPLACEMENT || mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
-            if (d) {
-                sb.append(regToCptr(reg, w));
-                sb.append(", ");
-                sb.append("[");
-                encodeRegWithCalc(sb);
-                if (disp != 0) {
-                    sb.append(disp > 0 ? " + " : " - ");
-                    char dispCptr[15] = {};
-                    core::int_to_cptr(core::abs_slow(disp), dispCptr);
-                    sb.append(dispCptr);
-                }
-                sb.append("]");
-            }
-            else {
-                sb.append("[");
-                encodeRegWithCalc(sb);
-                if (disp != 0) {
-                    sb.append(disp > 0 ? " + " : " - ");
-                    char dispCptr[15] = {};
-                    core::int_to_cptr(core::abs_slow(disp), dispCptr);
-                    sb.append(dispCptr);
-                }
+                sb.append(rmEffectiveAddrCalc(rm));
                 sb.append("]");
                 sb.append(", ");
                 sb.append(regToCptr(reg, w));
             }
         }
         else {
-            Assert(false, "Not implemented");
+            // 8 or 16 bit displacement.
+            if (d) {
+                sb.append(regToCptr(reg, w));
+                sb.append(", ");
+                sb.append("[");
+                sb.append(rmEffectiveAddrCalc(rm));
+                if (disp != 0) {
+                    sb.append(disp > 0 ? " + " : " - ");
+                    appendIntToSb(sb, core::abs_slow(disp));
+                }
+                sb.append("]");
+            }
+            else {
+                sb.append("[");
+                sb.append(rmEffectiveAddrCalc(rm));
+                if (disp != 0) {
+                    sb.append(disp > 0 ? " + " : " - ");
+                    appendIntToSb(sb, core::abs_slow(disp));
+                }
+                sb.append("]");
+                sb.append(", ");
+                sb.append(regToCptr(reg, w));
+            }
         }
     }
+};
 
-private:
-    void encodeRegWithCalc(core::str_builder<>& sb) const {
-        // TODO: I don't think this is correct ! It should be possible to use 8-bit registers.
-        switch (rm) {
-            case 0b000: sb.append("bx + si"); break;
-            case 0b001: sb.append("bx + di"); break;
-            case 0b010: sb.append("bp + si"); break;
-            case 0b011: sb.append("bp + di"); break;
-            case 0b100: sb.append("si"); break;
-            case 0b101: sb.append("di"); break;
-            case 0b110: sb.append("bp"); break;
-            case 0b111: sb.append("bx"); break;
-            default: Panic(false, "Invalid register");
-        }
+struct MovInst_v2 {
+    u8 w : 1;
+    Mod mod : 2;
+    u8 rm : 3;
+    i16 disp : 16;
+    i16 data : 16; // NOTE: I can't determine if data should be signed or unsigned literal.
+
+    void encode(core::str_builder<>& sb) const {
+        sb.append("mov ");
     }
 };
 
@@ -300,6 +313,7 @@ struct Inst8086 {
     Opcode opcode;
     union {
         MovInst_v1 movRegOrMemToOrFromReg;
+        MovInst_v2 movImmToRegOrMem;
         MovInst_v3 movImmToReg;
     };
 
@@ -320,6 +334,31 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
     auto reg = [](u8 b) -> u8     { return (b >> 3) & 0b111; };
     auto rm  = [](u8 b) -> u8     { return (b >> 0) & 0b111; };
 
+    auto data = [](auto& bytes, i32& idx, u8 w) -> i16 {
+        if (w == 0) {
+            u8 byte2 = bytes[idx++];
+            return i16(i8(byte2)); // Be very careful not to drop the sign!
+        }
+        else {
+            u8 byte2 = bytes[idx++];
+            u8 byte3 = bytes[idx++];
+            return i16(u16(byte3 << 8) | u16(byte2));
+        }
+    };
+
+    auto disp = [](auto& bytes, i32& idx, u8 mod) -> i16 {
+        if (mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
+            u8 byte3 = bytes[idx++];
+            return u16(i8(byte3));
+        }
+        else if (mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
+            u8 byte3 = bytes[idx++];
+            u8 byte4 = bytes[idx++];
+            return i16(u16(byte4 << 8) | u16(byte3));
+        }
+        return 0;
+    };
+
     u8 byte1 = bytes[idx++];
     Inst8086 res = {};
     res.opcode = o(byte1);
@@ -327,21 +366,11 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
     switch (res.opcode) {
         case MOV_IMM_TO_REG:
         {
-            MovInst_v3 inst = {};
             // For this command w and reg are in the first byte.
+            MovInst_v3 inst = {};
             inst.w = (byte1 >> 3) & 0b1;
             inst.reg = byte1 & 0b111;
-
-            if (inst.w == 0) {
-                u8 byte2 = bytes[idx++];
-                inst.data = i16(i8(byte2)); // Be very careful not to drop the sign!
-            }
-            else {
-                u8 byte2 = bytes[idx++];
-                u8 byte3 = bytes[idx++];
-                inst.data = i16(u16(byte3 << 8) | u16(byte2));
-            }
-
+            inst.data = data(bytes, idx, inst.w);
             res.movImmToReg = inst;
             return res;
         }
@@ -352,19 +381,9 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             inst.d = d(byte1);
             inst.w = w(byte1);
             inst.mod = mod(byte2);
-            inst.rm = rm(byte2);
             inst.reg = reg(byte2);
-
-            if (inst.mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
-                u8 byte3 = bytes[idx++];
-                inst.disp = u16(i8(byte3));
-            }
-            else if (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
-                u8 byte3 = bytes[idx++];
-                u8 byte4 = bytes[idx++];
-                inst.disp = i16(u16(byte4 << 8) | u16(byte3));
-            }
-
+            inst.rm = rm(byte2);
+            inst.disp = disp(bytes, idx, inst.mod);
             res.movRegOrMemToOrFromReg = inst;
             return res;
         }
@@ -375,8 +394,17 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             Assert(false, "Not implemented");
             return res;
         case MOV_IMM_TO_REG_OR_MEM:
-            Assert(false, "Not implemented");
+        {
+            u8 byte2 = bytes[idx++];
+            MovInst_v2 inst = {};
+            inst.w = w(byte1);
+            inst.mod = mod(byte2);
+            inst.rm = rm(byte2);
+            inst.disp = disp(bytes, idx, inst.mod);
+            inst.data = data(bytes, idx, inst.w);
+            res.movImmToRegOrMem = inst;
             return res;
+        }
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
             Assert(false, "Not implemented");
             return res;

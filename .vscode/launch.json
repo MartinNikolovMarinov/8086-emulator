@@ -11,6 +11,7 @@
             "program": "${workspaceFolder}/build/main",
             "args": [
                 "-f", "${workspaceFolder}/build/02_multiple_move_inst.asm.o",
+                // "-f", "${workspaceFolder}/build/03_more_complicated_move_inst.asm.o",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

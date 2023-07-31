@@ -3,53 +3,6 @@
 #include <fmt/format.h>
 #include <fcntl.h>
 
-// enum Opcodes {
-//     MOV_REG_TO_REG = 0b100010,
-//     SENTINEL
-// };
-
-// // NOTE: Machine instruction encoding and decoding is described on page 160 in the manual.
-
-// struct MovInst {
-//     u8 byte1;
-//     u8 byte2;
-
-//     u8 opcode() const { return byte1 >> 2; }
-//     u8 d() const { return (byte1 >> 1) & 0b1; }
-//     u8 w() const { return byte1 & 0b1; }
-//     u8 mod() const { return byte2 >> 6; }
-//     u8 reg() const { return (byte2 >> 3) & 0b111; }
-//     u8 rm() const { return byte2 & 0b111; }
-// };
-
-// bool decodeRegs(u32 r, u32 w, std::string& out) {
-//     switch (r) {
-//         case 0b000: out += (w == 0) ? "al" : "ax"; break;
-//         case 0b001: out += (w == 0) ? "cl" : "cx"; break;
-//         case 0b010: out += (w == 0) ? "dl" : "dx"; break;
-//         case 0b011: out += (w == 0) ? "bl" : "bx"; break;
-//         case 0b100: out += (w == 0) ? "ah" : "sp"; break;
-//         case 0b101: out += (w == 0) ? "ch" : "bp"; break;
-//         case 0b110: out += (w == 0) ? "dh" : "si"; break;
-//         case 0b111: out += (w == 0) ? "bh" : "di"; break;
-//         default: return false;
-//     }
-//     return true;
-// }
-
-// bool decode(MovInst& inst, std::string& out) {
-//     out += "mov ";
-//     if (bool ok = decodeRegs(inst.rm(), inst.w(), out); !ok) return false;
-//     out += ", ";
-//     if (inst.mod() == 0b11) {
-//         if (bool ok = decodeRegs(inst.reg(), inst.w(), out); !ok) return false;
-//     } else {
-//         Assert(false, "not implemented yet");
-//     }
-//     out += "\n";
-//     return true;
-// }
-
 /**
  * IMPORTANT:
  * Synthesized information for machine instruction encoding and decoding, as described on page 160 in the Intel 8086 CPU
@@ -92,7 +45,7 @@
  * * The last 3 bits are the r/m field (rm). It depends on how the (mod) field is set. If (mod) is 11
  *   (register-to-register mode), then (rm) identifies the second register operand. If (mod) selects memory mode, then
  *   (rm) indicates how the effective address of the memory operand is to be calculated.
- *     * mod == 11 - REGISTER TO REGISTER MODE
+ *     * mod == 11 - REGISTER TO REGISTER MODE, NO DISPLACEMENT
  *         * 000 (rm) - w == 0: AL, w == 1: AX
  *         * 001 (rm) - w == 0: CL, w == 1: CX
  *         * 010 (rm) - w == 0: DL, w == 1: DX
@@ -133,25 +86,235 @@
  *   operand and/or the actual value of an immediate constant operand.
 */
 
-template <i32 TByteSize>
-struct InstASM86 {
-    static_assert(TByteSize >= 1 && TByteSize <= 6, "InstASM86 size must be between 1 and 6 bytes");
+// Enumeration for all instruction opcodes. From Table 4-12. 8086/8088 Instruction Set.
+enum Opcode : u8 {
+    // 4 bit opcodes
+    MOV_IMM_TO_REG                      = 0b1011,
 
-    u8 bytes[TByteSize] = {};
+    // 6 bit opcodes
+    MOV_REG_OR_MEM_TO_OR_FROM_REG       = 0b100010,
+    MOV_MEM_TO_ACC                      = 0b101000,
+    MOV_ACC_TO_MEM                      = 0b101001,
+
+    // 7 bit opcodes
+    MOV_IMM_TO_REG_OR_MEM               = 0b1100011,
+
+    // 8 bit opcodes
+    MOV_REG_OR_MEMORY_TO_SEGMENT_REG    = 0b10001110, // 8 bits
+    MOV_SEGMENT_REG_TO_REG_OR_MEMORY    = 0b10001100, // 8 bits
 };
+
+static constexpr const char* opcodeToCptr(Opcode o) {
+    switch (o) {
+        case MOV_IMM_TO_REG:                     return "MOV immediate to register";
+        case MOV_REG_OR_MEM_TO_OR_FROM_REG:      return "MOV register/memory to/from register";
+        case MOV_MEM_TO_ACC:                     return "MOV memory to accumulator";
+        case MOV_ACC_TO_MEM:                     return "MOV accumulator to memory";
+        case MOV_IMM_TO_REG_OR_MEM:              return "MOV immediate to register/memory";
+        case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:   return "MOV register/memory to segment register";
+        case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:   return "MOV segment register to register/memory";
+    }
+
+    return "UNKNOWN OPCODE";
+}
+
+static constexpr Opcode opcodeDecode(u8 opcodeByte) {
+    // Check 8 bit opcodes:
+    switch (opcodeByte) {
+        case MOV_REG_OR_MEMORY_TO_SEGMENT_REG: return MOV_REG_OR_MEMORY_TO_SEGMENT_REG;
+        case MOV_SEGMENT_REG_TO_REG_OR_MEMORY: return MOV_SEGMENT_REG_TO_REG_OR_MEMORY;
+    }
+
+    // Check 7 bit opcodes:
+    opcodeByte = opcodeByte >> 1;
+    switch (opcodeByte) {
+        case MOV_IMM_TO_REG_OR_MEM: return MOV_IMM_TO_REG_OR_MEM;
+    }
+
+    // Check 6 bit opcodes:
+    opcodeByte = opcodeByte >> 1;
+    switch (opcodeByte) {
+        case MOV_REG_OR_MEM_TO_OR_FROM_REG: return MOV_REG_OR_MEM_TO_OR_FROM_REG;
+        case MOV_MEM_TO_ACC:                return MOV_MEM_TO_ACC;
+        case MOV_ACC_TO_MEM:                return MOV_ACC_TO_MEM;
+    }
+
+    // Check 5 bit opcodes:
+    opcodeByte = opcodeByte >> 1;
+    // TODO: Don't forget to add a switch for 5 bit opcodes, when support is added for any of them.
+
+    // Check 4 bit opcodes:
+    opcodeByte = opcodeByte >> 1;
+    switch (opcodeByte) {
+        case MOV_IMM_TO_REG: return MOV_IMM_TO_REG;
+    }
+
+    Panic(false, "Opcode unsupported or invalid");
+    return Opcode(0);
+}
+
+static constexpr i32 MAX_8086_INST_SIZE = 6;
+
+enum Mod : u8 {
+    MOD_MEMORY_NO_DISPLACEMENT               = 0b00,
+    MOD_MEMORY_8_BIT_DISPLACEMENT            = 0b01,
+    MOD_MEMORY_16_BIT_DISPLACEMENT           = 0b10,
+    MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT = 0b11,
+};
+
+struct MovInst_v1 {
+    u8 d : 1;
+    u8 w : 1;
+    u8 reg : 3;
+    u8 rm : 3;
+    Mod mod : 2;
+    u16 disp : 16;
+
+    void encode(core::str_builder<>& sb) const {
+        sb.append("mov ");
+
+        if (mod == MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT) {
+            if (d) {
+                encodeReg(sb, reg);
+                sb.append(", ");
+                encodeReg(sb, rm);
+            }
+            else {
+                encodeReg(sb, rm);
+                sb.append(", ");
+                encodeReg(sb, reg);
+            }
+        }
+        else {
+            Assert(false, "Not implemented");
+        }
+    }
+
+private:
+
+    void encodeReg(core::str_builder<>& sb, u8 reg) const {
+        if (w) {
+            switch(reg) {
+                case 0b000: sb.append("ax"); break;
+                case 0b001: sb.append("cx"); break;
+                case 0b010: sb.append("dx"); break;
+                case 0b011: sb.append("bx"); break;
+                case 0b100: sb.append("sp"); break;
+                case 0b101: sb.append("bp"); break;
+                case 0b110: sb.append("si"); break;
+                case 0b111: sb.append("di"); break;
+                default: Panic(false, "Invalid register");
+            }
+        }
+        else {
+            switch(reg) {
+                case 0b000: sb.append("al"); break;
+                case 0b001: sb.append("cl"); break;
+                case 0b010: sb.append("dl"); break;
+                case 0b011: sb.append("bl"); break;
+                case 0b100: sb.append("ah"); break;
+                case 0b101: sb.append("ch"); break;
+                case 0b110: sb.append("dh"); break;
+                case 0b111: sb.append("bh"); break;
+                default: Panic(false, "Invalid register");
+            }
+        }
+    }
+};
+
+struct Inst8086 {
+    Opcode opcode;
+    union {
+        MovInst_v1 movRegOrMemToOrFromReg;
+    };
+
+    void encode(core::str_builder<>& sb) const {
+        switch (opcode) {
+            case MOV_REG_OR_MEM_TO_OR_FROM_REG: movRegOrMemToOrFromReg.encode(sb); break;
+            default:                            Panic(false, "Opcode unsupported or invalid");
+        }
+    }
+};
+
+Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
+    auto o   = [](u8 b) -> Opcode { return opcodeDecode(b); };
+    auto w   = [](u8 b) -> bool   { return (b >> 0) & 0b1; };
+    auto d   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
+    auto mod = [](u8 b) -> Mod    { return Mod((b >> 6) & 0b11); };
+    auto reg = [](u8 b) -> u8     { return (b >> 3) & 0b111; };
+    auto rm  = [](u8 b) -> u8     { return (b >> 0) & 0b111; };
+
+    u8 byte1 = bytes[idx++];
+    Inst8086 res = {};
+    res.opcode = o(byte1);
+
+    switch (res.opcode) {
+        case MOV_IMM_TO_REG:
+            Assert(false, "Not implemented");
+            return res;
+        case MOV_REG_OR_MEM_TO_OR_FROM_REG:
+        {
+            u8 byte2 = bytes[idx++];
+            MovInst_v1 inst = {};
+            inst.d = d(byte1);
+            inst.w = w(byte1);
+            inst.mod = mod(byte2);
+            inst.rm = rm(byte2);
+            inst.reg = reg(byte2);
+
+            if (inst.mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
+                u8 byte3 = bytes[idx++];
+                inst.disp = u16(byte3);
+                break;
+            }
+
+            if (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
+                u8 byte3 = bytes[idx++];
+                u8 byte4 = bytes[idx++];
+                inst.disp = u16(byte4 << 8) | u16(byte3);
+                break;
+            }
+
+            res.movRegOrMemToOrFromReg = inst;
+            return res;
+        }
+        case MOV_MEM_TO_ACC:
+            Assert(false, "Not implemented");
+            return res;
+        case MOV_ACC_TO_MEM:
+            Assert(false, "Not implemented");
+            return res;
+        case MOV_IMM_TO_REG_OR_MEM:
+            Assert(false, "Not implemented");
+            return res;
+        case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
+            Assert(false, "Not implemented");
+            return res;
+        case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:
+            Assert(false, "Not implemented");
+            return res;
+    }
+
+    return res;
+}
 
 i32 main(i32 argc, char const** argv) {
     initCore(argc, argv);
 
     auto binaryData = ValueOrDie(core::file_read_full(g_cmdLineArgs.fileName, O_RDONLY, 0666));
-    std::string out = "bits 16\n";
-    for (i32 i = 0; i < binaryData.len(); i+=2) {
-        MovInst mov;
-        mov.byte1 = binaryData[i];
-        mov.byte2 = binaryData[i+1];
-        Assert(decode(mov, out));
+    core::str_builder encodedStream;
+    encodedStream.append("bits 16\n\n"); // TODO: Hardcoding 16 bit mode, but this should be detected from the binary.
+    i32 idx = 0;
+    i32 instCount = 0;
+    while (idx < binaryData.len()) {
+        auto inst = decodeInst(binaryData, idx);
+        inst.encode(encodedStream);
+        encodedStream.append("\n");
+        instCount++;
     }
 
-    fmt::print("{}\n", out.data());
+    fmt::print("{}\n", encodedStream.view().buff);
+    fmt::print("Decoded {} instructions\n", instCount);
+
     return 0;
 }

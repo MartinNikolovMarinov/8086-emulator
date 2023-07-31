@@ -239,16 +239,26 @@ struct MovInst_v1 {
             }
         }
         else if (mod == MOD_MEMORY_NO_DISPLACEMENT) {
+            bool isDirectAddressing = (rm == 0b110);
+
             if (d) {
                 sb.append(regToCptr(reg, w));
                 sb.append(", ");
                 sb.append("[");
-                sb.append(rmEffectiveAddrCalc(rm));
+                if (isDirectAddressing) {
+                    appendIntToSb(sb, disp);
+                } else {
+                    sb.append(rmEffectiveAddrCalc(rm));
+                }
                 sb.append("]");
             }
             else {
                 sb.append("[");
-                sb.append(rmEffectiveAddrCalc(rm));
+                if (isDirectAddressing) {
+                    appendIntToSb(sb, disp);
+                } else {
+                    sb.append(rmEffectiveAddrCalc(rm));
+                }
                 sb.append("]");
                 sb.append(", ");
                 sb.append(regToCptr(reg, w));
@@ -413,7 +423,16 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             inst.mod = mod(byte2);
             inst.reg = reg(byte2);
             inst.rm = rm(byte2);
-            inst.disp = disp(bytes, idx, inst.mod);
+
+            if (inst.mod == MOD_MEMORY_NO_DISPLACEMENT && inst.rm == 0b110) {
+                // Direct addressing. Store data in the displacement field.
+                // TODO: This does not seem to be documented anywhere. Is it really correct?
+                inst.disp = data(bytes, idx, inst.w);
+            }
+            else {
+                inst.disp = disp(bytes, idx, inst.mod);
+            }
+
             res.movRegOrMemToOrFromReg = inst;
             return res;
         }
@@ -457,6 +476,7 @@ i32 main(i32 argc, char const** argv) {
     while (idx < binaryData.len()) {
         auto inst = decodeInst(binaryData, idx);
         inst.encode(encodedStream);
+        // fmt::print("{}\n", encodedStream.view().buff);
         encodedStream.append("\n");
         instCount++;
     }

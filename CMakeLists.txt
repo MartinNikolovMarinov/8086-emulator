@@ -11,14 +11,23 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json
 add_executable(${PROJECT_NAME}
     main.cpp
 
-    src/init_core.h
     src/init_core.cpp
+    src/init_core.h
+    src/inst_8086.cpp
+    src/inst_8086.h
+    src/mod.h
+    src/mov.h
+    src/mov.cpp
+    src/opcode.cpp
+    src/opcode.h
+    src/utils.cpp
+    src/utils.h
 )
 
 # BEGIN Compile Options
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(mm_flags -std=c++17 -Wall -Wextra -Wno-unknown-pragmas -Wno-unused-function)
+    set(mm_flags -std=c++17 -Wall -Wextra -Wno-unknown-pragmas -Wno-unused-function -Wfatal-errors)
     set(mm_core_debug_flags -O0 -g -ggdb)
     set(mm_core_release_flags)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -61,8 +70,3 @@ option(RUN_COMPILETIME_TESTS "" OFF)
 option(CORE_LIBRARY_SHARED "" ON)
 target_link_libraries(${PROJECT_NAME} PRIVATE core)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/core ${CMAKE_CURRENT_BINARY_DIR}/core)
-
-# Inlcude path:
-target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)

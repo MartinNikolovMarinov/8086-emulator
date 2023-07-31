@@ -222,15 +222,63 @@ private:
     }
 };
 
+struct MovInst_v3 {
+    u8 w : 1;
+    u8 reg : 3;
+    i16 data : 16; // NOTE: I can't determine if data should be signed or unsigned literal.
+
+    void encode(core::str_builder<>& sb) const {
+        sb.append("mov ");
+        encodeReg(sb, reg);
+        sb.append(", ");
+        char dataToStr[15] = {};
+        core::int_to_cptr(data, dataToStr);
+        sb.append(dataToStr);
+    }
+
+private:
+
+    void encodeReg(core::str_builder<>& sb, u8 reg) const {
+        if (w) {
+            switch(reg) {
+                case 0b000: sb.append("ax"); break;
+                case 0b001: sb.append("cx"); break;
+                case 0b010: sb.append("dx"); break;
+                case 0b011: sb.append("bx"); break;
+                case 0b100: sb.append("sp"); break;
+                case 0b101: sb.append("bp"); break;
+                case 0b110: sb.append("si"); break;
+                case 0b111: sb.append("di"); break;
+                default: Panic(false, "Invalid register");
+            }
+        }
+        else {
+            switch(reg) {
+                case 0b000: sb.append("al"); break;
+                case 0b001: sb.append("cl"); break;
+                case 0b010: sb.append("dl"); break;
+                case 0b011: sb.append("bl"); break;
+                case 0b100: sb.append("ah"); break;
+                case 0b101: sb.append("ch"); break;
+                case 0b110: sb.append("dh"); break;
+                case 0b111: sb.append("bh"); break;
+                default: Panic(false, "Invalid register");
+            }
+        }
+    }
+};
+
 struct Inst8086 {
     Opcode opcode;
     union {
         MovInst_v1 movRegOrMemToOrFromReg;
+        MovInst_v3 movImmToReg;
     };
 
     void encode(core::str_builder<>& sb) const {
         switch (opcode) {
             case MOV_REG_OR_MEM_TO_OR_FROM_REG: movRegOrMemToOrFromReg.encode(sb); break;
+            case MOV_IMM_TO_REG:                movImmToReg.encode(sb);            break;
             default:                            Panic(false, "Opcode unsupported or invalid");
         }
     }
@@ -250,8 +298,24 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
 
     switch (res.opcode) {
         case MOV_IMM_TO_REG:
-            Assert(false, "Not implemented");
+        {
+            MovInst_v3 inst = {};
+            inst.w = (byte1 >> 3) & 0b1; // For this command w is in the first byte!
+            inst.reg = reg(byte1);
+
+            if (inst.w == 0) {
+                u8 byte2 = bytes[idx++];
+                inst.data = i16(i8(byte2)); // Be very careful not to drop the sign!
+            }
+            else {
+                u8 byte2 = bytes[idx++];
+                u8 byte3 = bytes[idx++];
+                inst.data = i16(byte3 << 8) | i16(byte2);
+            }
+
+            res.movImmToReg = inst;
             return res;
+        }
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
         {
             u8 byte2 = bytes[idx++];
@@ -265,14 +329,11 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
             if (inst.mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
                 u8 byte3 = bytes[idx++];
                 inst.disp = u16(byte3);
-                break;
             }
-
-            if (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
+            else if (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
                 u8 byte3 = bytes[idx++];
                 u8 byte4 = bytes[idx++];
                 inst.disp = u16(byte4 << 8) | u16(byte3);
-                break;
             }
 
             res.movRegOrMemToOrFromReg = inst;

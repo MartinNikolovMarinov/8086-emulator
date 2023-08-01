@@ -208,14 +208,14 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx){
         return inst;
     };
 
-    auto inst_v2 = [&](u8 byte1, auto& bytes, i32& idx) -> Inst_v2 {
+    auto inst_v2 = [&](u8 byte1, auto& bytes, i32& idx, bool ignoreW = false) -> Inst_v2 {
         u8 byte2 = bytes[idx++];
         Inst_v2 inst = {};
         inst.w = w(byte1);
         inst.mod = mod(byte2);
         inst.rm = rm(byte2);
         inst.disp = disp(bytes, idx, inst.mod);
-        inst.data = data(bytes, idx, inst.w);
+        inst.data = data(bytes, idx, ignoreW ? 0 : inst.w);
         return inst;
     };
 
@@ -274,7 +274,7 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx){
         }
         case ADD_IMM_TO_REG_OR_MEM:
         {
-            auto inst = inst_v2(byte1, bytes, idx);
+            auto inst = inst_v2(byte1, bytes, idx, true);
             inst.type = InstType::ADD;
             inst.s = s(byte1);
             res.addImmToRegOrMem = inst;

@@ -31,7 +31,6 @@ const char* regToCptr(u8 reg, u8 w) {
 }
 
 const char* rmEffectiveAddrCalc(u8 rm) {
-    // TODO: I don't think this is implemented correctly. You should be able to use any of the registers, even 8 bit ones.
     switch (rm) {
         case 0b000: return "bx + si";
         case 0b001: return "bx + di";

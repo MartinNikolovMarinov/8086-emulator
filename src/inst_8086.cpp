@@ -76,8 +76,7 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
 
             bool isDirectAddressing = (inst.mod == MOD_MEMORY_NO_DISPLACEMENT && inst.rm == 0b110);
             if (isDirectAddressing) {
-                // When Direct addressing there seems to be a data filed insted of displacement field, so store data in
-                // the displacement field. TODO: Check if this is correct, it does not seem to be documented anywhere.
+                // When Direct addressing use the displacement as the address data.
                 inst.disp = data(bytes, idx, inst.w);
             }
             else {

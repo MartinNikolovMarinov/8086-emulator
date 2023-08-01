@@ -18,8 +18,6 @@ i32 main(i32 argc, char const** argv) {
         instCount++;
     }
 
-    fmt::print("{}\n", encodedStream.view().buff);
-    fmt::print("Decoded {} instructions\n", instCount);
-
+    fmt::print("{}", encodedStream.view().buff);
     return 0;
 }

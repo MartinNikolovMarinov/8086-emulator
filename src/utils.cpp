@@ -46,8 +46,16 @@ const char* rmEffectiveAddrCalc(u8 rm) {
     return "INVALID REGISTER";
 }
 
-void appendIntToSb(core::str_builder<>& sb, i16 i) {
+namespace {
+
+template <typename TInt>
+void appendIntToSb(core::str_builder<>& sb, TInt i) {
     char ncptr[8] = {};
     core::int_to_cptr(i, ncptr);
     sb.append(ncptr);
 }
+
+} // namespace
+
+void appendIntToSb(core::str_builder<>& sb, i16 i) { return appendIntToSb<i16>(sb, i); }
+void appendIntToSb(core::str_builder<>& sb, u16 i) { return appendIntToSb<u16>(sb, i); }

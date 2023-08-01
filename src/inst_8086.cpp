@@ -26,7 +26,7 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
         else {
             u8 byte2 = bytes[idx++];
             u8 byte3 = bytes[idx++];
-            return i16(u16(byte3 << 8) | u16(byte2));
+            return (i16(byte3) << 8) | i16(byte2);
         }
     };
 
@@ -38,7 +38,7 @@ Inst8086 decodeInst(core::arr<u8>& bytes, i32& idx) {
         else if (mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
             u8 byte3 = bytes[idx++];
             u8 byte4 = bytes[idx++];
-            return i16(u16(byte4 << 8) | u16(byte3));
+            return (i16(byte4) << 8) | i16(byte3);
         }
         return 0;
     };

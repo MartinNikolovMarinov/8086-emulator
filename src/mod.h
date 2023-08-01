@@ -1,3 +1,5 @@
+#pragma once
+
 #include "init_core.h"
 
 enum Mod : u8 {

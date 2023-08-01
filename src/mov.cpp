@@ -5,14 +5,14 @@ void MovInst_v3::encode(core::str_builder<>& sb) const {
     sb.append("mov ");
     sb.append(regToCptr(reg, w));
     sb.append(", ");
-    appendIntToSbAsImmediate(sb, data);
+    appendIntToSb_AsImmediate(sb, data);
 }
 
 void MovInst_v4::encode(core::str_builder<>& sb) const {
     sb.append("mov ");
     if (d) {
         sb.append("[");
-        appendIntToSbAsImmediate(sb, addr);
+        appendIntToSb_AsImmediate(sb, addr);
         sb.append("]");
         sb.append(", ");
         sb.append("ax");
@@ -21,7 +21,7 @@ void MovInst_v4::encode(core::str_builder<>& sb) const {
         sb.append("ax");
         sb.append(", ");
         sb.append("[");
-        appendIntToSbAsImmediate(sb, addr);
+        appendIntToSb_AsImmediate(sb, addr);
         sb.append("]");
     }
 }

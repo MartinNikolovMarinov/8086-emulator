@@ -44,7 +44,7 @@ void encodeInst(core::str_builder<>& sb, const Inst_v1& inst) {
             sb.append(", ");
             sb.append("[");
             if (isDirectAddressing) {
-                appendIntToSbAsImmediate(sb, disp);
+                appendIntToSb_AsImmediate(sb, disp);
             } else {
                 sb.append(rmEffectiveAddrCalc(rm));
             }
@@ -53,7 +53,7 @@ void encodeInst(core::str_builder<>& sb, const Inst_v1& inst) {
         else {
             sb.append("[");
             if (isDirectAddressing) {
-                appendIntToSbAsImmediate(sb, disp);
+                appendIntToSb_AsImmediate(sb, disp);
             } else {
                 sb.append(rmEffectiveAddrCalc(rm));
             }
@@ -69,13 +69,13 @@ void encodeInst(core::str_builder<>& sb, const Inst_v1& inst) {
             sb.append(", ");
             sb.append("[");
             sb.append(rmEffectiveAddrCalc(rm));
-            if (disp != 0) appendIntToSbAsCalculation(sb, disp);
+            if (disp != 0) appendIntToSb_AsDisp(sb, disp, mod);
             sb.append("]");
         }
         else {
             sb.append("[");
             sb.append(rmEffectiveAddrCalc(rm));
-            if (disp != 0) appendIntToSbAsCalculation(sb, disp);
+            if (disp != 0) appendIntToSb_AsDisp(sb, disp, mod);
             sb.append("]");
             sb.append(", ");
             sb.append(regToCptr(reg, w));
@@ -100,7 +100,7 @@ void encodeInst(core::str_builder<>& sb, const Inst_v2& inst) {
         sb.append(", ");
         sb.append(w ? "word" : "byte");
         sb.append(" ");
-        appendIntToSbAsImmediate(sb, data);
+        appendIntToSb_AsImmediate(sb, data);
     }
     else if (mod == MOD_MEMORY_NO_DISPLACEMENT) {
         sb.append("[");
@@ -109,18 +109,18 @@ void encodeInst(core::str_builder<>& sb, const Inst_v2& inst) {
         sb.append(", ");
         sb.append(w ? "word" : "byte");
         sb.append(" ");
-        appendIntToSbAsImmediate(sb, data);
+        appendIntToSb_AsImmediate(sb, data);
     }
     else {
         // 8 or 16 bit displacement.
         sb.append("[");
         sb.append(rmEffectiveAddrCalc(rm));
-        if (disp != 0) appendIntToSbAsCalculation(sb, disp);
+        appendIntToSb_AsDisp(sb, disp, mod);
         sb.append("]");
         sb.append(", ");
         sb.append(w ? "word" : "byte");
         sb.append(" ");
-        appendIntToSbAsImmediate(sb, data);
+        appendIntToSb_AsImmediate(sb, data);
     }
 }
 

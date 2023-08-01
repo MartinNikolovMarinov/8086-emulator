@@ -13,7 +13,7 @@ mov dx, 3948
 mov dx, -3948
 
 ; 16-bit max immediate-to-register
-mov ax, 32769
+mov ax, 32769 ; This one is technically invalid.
 
 ; Source address calculation
 mov al, [bx + si]
@@ -25,7 +25,7 @@ mov ah, [bx + si + 4]
 
 ; Source address calculation plus 16-bit displacement
 mov al, [bx + si + 4999]
-mov al, [bx + si + 32769]
+mov al, [bx + si + 32769] ; This one is technically invalid.
 
 ; Dest address calculation
 mov [bx + di], cx

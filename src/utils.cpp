@@ -49,7 +49,7 @@ const char* rmEffectiveAddrCalc(u8 rm) {
 namespace {
 
 template <typename TInt>
-void appendIntToSbAsImmediate(core::str_builder<>& sb, TInt i) {
+void appendIntToSb(core::str_builder<>& sb, TInt i) {
     char ncptr[8] = {};
     core::int_to_cptr(i, ncptr);
     sb.append(ncptr);
@@ -57,25 +57,45 @@ void appendIntToSbAsImmediate(core::str_builder<>& sb, TInt i) {
 
 } // namespace
 
-void appendIntToSbAsImmediate(core::str_builder<>& sb, u16 i) {
+void appendIntToSb_AsImmediate(core::str_builder<>& sb, u16 i) {
     if (isSignbitSet(i)) {
-        appendIntToSbAsImmediate<i16>(sb, i16(i));
+        appendIntToSb<i16>(sb, i16(i));
     }
     else {
-        appendIntToSbAsImmediate<u16>(sb, i);
+        appendIntToSb<u16>(sb, i);
     }
 }
 
-void appendIntToSbAsCalculation(core::str_builder<>& sb, u16 i) {
-    if (isSignbitSet(i)) {
-        sb.append(" - ");
-        i16 iabs = core::abs(i16(i));
-        appendIntToSbAsImmediate<i16>(sb, iabs);
+void appendIntToSb_AsDisp(core::str_builder<>& sb, u16 i, Mod mod) {
+    if (i == 0) return;
+
+    if (mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
+        u8 ismall = u8(i);
+        if (isSignbitSet(ismall)) {
+            sb.append(" - ");
+            i8 ismallabs = core::abs(i8(ismall));
+            appendIntToSb<i8>(sb, ismallabs);
+        }
+        else {
+            sb.append(" + ");
+            appendIntToSb<u8>(sb, u8(ismall));
+        }
+    }
+    else if (mod == MOD_MEMORY_16_BIT_DISPLACEMENT) {
+        if (isSignbitSet(i)) {
+            sb.append(" - ");
+            i16 iabs = core::abs(i16(i));
+            appendIntToSb<i16>(sb, iabs);
+        }
+        else {
+            sb.append(" + ");
+            appendIntToSb<u16>(sb, i);
+        }
     }
     else {
-        sb.append(" + ");
-        appendIntToSbAsImmediate<i16>(sb, i16(i));
+        Assert(false, "Mod has no displacement");
     }
 }
 
+bool isSignbitSet(u8 i)  { return (i & 0x80) != 0; }
 bool isSignbitSet(u16 i) { return (i & 0x8000) != 0; }

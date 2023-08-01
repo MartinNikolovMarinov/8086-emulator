@@ -11,8 +11,8 @@
             "program": "${workspaceFolder}/build/main",
             "args": [
                 // "-f", "${workspaceFolder}/build/02_multiple_move_inst.asm.o",
-                "-f", "${workspaceFolder}/build/03_more_complicated_move_inst.asm.o",
-                // "-f", "${workspaceFolder}/build/04_challange_move_inst.asm.o",
+                // "-f", "${workspaceFolder}/build/03_more_complicated_move_inst.asm.o",
+                "-f", "${workspaceFolder}/build/04_challange_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/05_add_sub_cmp_jnz.asm.o"
             ],
             "stopAtEntry": false,

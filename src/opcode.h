@@ -88,15 +88,18 @@
 // Enumeration for all instruction opcodes. From Table 4-12. 8086/8088 Instruction Set.
 enum Opcode : u8 {
     // 4 bit opcodes
-    MOV_IMM_TO_REG                      = 0b1011,
+    MOV_IMM_TO_REG                      = 0b1011, // mov 3
 
     // 6 bit opcodes
-    MOV_REG_OR_MEM_TO_OR_FROM_REG       = 0b100010,
-    MOV_MEM_TO_ACC                      = 0b101000,
-    MOV_ACC_TO_MEM                      = 0b101001,
+    MOV_REG_OR_MEM_TO_OR_FROM_REG       = 0b100010, // mov 1
+    ADD_REG_OR_MEM_WITH_REG_TO_EDIT     = 0b000000, // add 1
+    ADD_IMM_TO_REG_OR_MEM               = 0b100000, // add 2
 
     // 7 bit opcodes
-    MOV_IMM_TO_REG_OR_MEM               = 0b1100011,
+    MOV_IMM_TO_REG_OR_MEM               = 0b1100011, // mov 2
+    MOV_MEM_TO_ACC                      = 0b1010000, // mov 4
+    MOV_ACC_TO_MEM                      = 0b1010001, // mov 5
+    ADD_IMM_TO_ACC                      = 0b0000010, // add 3
 
     // 8 bit opcodes
     MOV_REG_OR_MEMORY_TO_SEGMENT_REG    = 0b10001110, // 8 bits

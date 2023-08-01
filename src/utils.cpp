@@ -49,7 +49,7 @@ const char* rmEffectiveAddrCalc(u8 rm) {
 namespace {
 
 template <typename TInt>
-void appendIntToSb(core::str_builder<>& sb, TInt i) {
+void appendIntToSbAsImmediate(core::str_builder<>& sb, TInt i) {
     char ncptr[8] = {};
     core::int_to_cptr(i, ncptr);
     sb.append(ncptr);
@@ -57,5 +57,25 @@ void appendIntToSb(core::str_builder<>& sb, TInt i) {
 
 } // namespace
 
-void appendIntToSb(core::str_builder<>& sb, i16 i) { return appendIntToSb<i16>(sb, i); }
-void appendIntToSb(core::str_builder<>& sb, u16 i) { return appendIntToSb<u16>(sb, i); }
+void appendIntToSbAsImmediate(core::str_builder<>& sb, u16 i) {
+    if (isSignbitSet(i)) {
+        appendIntToSbAsImmediate<i16>(sb, i16(i));
+    }
+    else {
+        appendIntToSbAsImmediate<u16>(sb, i);
+    }
+}
+
+void appendIntToSbAsCalculation(core::str_builder<>& sb, u16 i) {
+    if (isSignbitSet(i)) {
+        sb.append(" - ");
+        i16 iabs = core::abs(i16(i));
+        appendIntToSbAsImmediate<i16>(sb, iabs);
+    }
+    else {
+        sb.append(" + ");
+        appendIntToSbAsImmediate<i16>(sb, i16(i));
+    }
+}
+
+bool isSignbitSet(u16 i) { return (i & 0x8000) != 0; }

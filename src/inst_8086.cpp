@@ -3,16 +3,18 @@
 
 namespace asm8086 {
 
+namespace {
+
 bool isDirectAddressing(Mod mod, u8 rm) {
     return mod == MOD_MEMORY_NO_DISPLACEMENT && rm == 0b110;
 }
+
+} // namespace
 
 Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
     auto o   = [](u8 b) -> Opcode { return opcodeDecode(b); };
     auto w   = [](u8 b) -> bool   { return (b >> 0) & 0b1; };
     auto d   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
-    auto s   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
-    [[maybe_unused]] auto v   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
     auto mod = [](u8 b) -> Mod    { return Mod((b >> 6) & 0b11); };
     auto reg = [](u8 b) -> u8     { return (b >> 3) & 0b111; };
     auto rm  = [](u8 b) -> u8     { return (b >> 0) & 0b111; };
@@ -37,6 +39,53 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
         }
     };
 
+    auto createImmToReg = [&](u8 opcodeByte, auto& bytes, i32& idx) -> ImmToReg {
+        ImmToReg inst = {};
+        inst.w = (opcodeByte >> 3) & 0b1;
+        inst.reg = opcodeByte & 0b111;
+        parseData(inst.data, inst.w, bytes, idx);
+        return inst;
+    };
+
+    auto createRegOrMemToOrFromReg = [&](u8 opcodeByte, auto& bytes, i32& idx) -> RegMemToFromReg {
+        u8 addrModByte = bytes[idx++];
+        RegMemToFromReg inst = {};
+        inst.d = d(opcodeByte);
+        inst.w = w(opcodeByte);
+        inst.mod = mod(addrModByte);
+        inst.reg = reg(addrModByte);
+        inst.rm = rm(addrModByte);
+        parseDisp(inst.disp, inst.mod, inst.rm, bytes, idx);
+        return inst;
+    };
+
+    auto createAccToMem = [&](u8 opcodeByte, i32& idx) -> MemAccToAccMem {
+        MemAccToAccMem inst = {};
+        inst.d = d(opcodeByte);
+        inst.w = w(opcodeByte);
+        parseData(inst.addr, 1, bytes, idx);
+        return inst;
+    };
+
+    auto createImmToRegOrMem = [&](u8 opcodeByte, auto& bytes, i32& idx, u8* wOverride = nullptr) -> ImmToRegMem {
+        u8 addrModByte = bytes[idx++];
+        ImmToRegMem inst = {};
+        inst.w = w(opcodeByte);
+        inst.mod = mod(addrModByte);
+        inst.reg = reg(addrModByte);
+        inst.rm = rm(addrModByte);
+        parseDisp(inst.disp, inst.mod, inst.rm, bytes, idx);
+        parseData(inst.data, (wOverride == nullptr) ? inst.w : *wOverride, bytes, idx);
+        return inst;
+    };
+
+    auto createImmToAcc = [&](u8 opcodeByte, i32& idx) -> ImmToAcc {
+        ImmToAcc inst = {};
+        inst.w = w(opcodeByte);
+        parseData(inst.data, inst.w, bytes, idx);
+        return inst;
+    };
+
     i32 currIdx = idx;
     defer { idx += currIdx - idx; };
     u8 opcodeByte = bytes[currIdx++];
@@ -45,50 +94,23 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
 
     switch (res.opcode) {
         case MOV_IMM_TO_REG:
-        {
-            ImmToReg inst = {};
-            inst.w = (opcodeByte >> 3) & 0b1;
-            inst.reg = opcodeByte & 0b111;
-            parseData(inst.data, inst.w, bytes, currIdx);
+            res.immToReg = createImmToReg(opcodeByte, bytes, currIdx);
             res.type = InstType::MOV;
-            res.immToReg = inst;
             break;
-        }
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
-        {
-            u8 addrModByte = bytes[currIdx++];
-            RegMemToFromReg inst = {};
-            inst.d = d(opcodeByte);
-            inst.w = w(opcodeByte);
-            inst.mod = mod(addrModByte);
-            inst.reg = reg(addrModByte);
-            inst.rm = rm(addrModByte);
-            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
-            res.regMemToFromReg = inst;
+            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
             res.type = InstType::MOV;
             break;
-        }
         case MOV_MEM_TO_ACC: [[fallthrough]];
         case MOV_ACC_TO_MEM:
         {
-            MemAccToAccMem inst = {};
-            inst.d = d(opcodeByte);
-            inst.w = w(opcodeByte);
-            parseData(inst.addr, 1, bytes, currIdx);
-            res.memAccToAccMem = inst;
+            res.memAccToAccMem = createAccToMem(opcodeByte, currIdx);
+            res.type = InstType::MOV;
             break;
         }
         case MOV_IMM_TO_REG_OR_MEM:
         {
-            u8 addrModByte = bytes[currIdx++];
-            ImmToRegMem inst = {};
-            inst.w = w(opcodeByte);
-            inst.mod = mod(addrModByte);
-            inst.reg = reg(addrModByte);
-            inst.rm = rm(addrModByte);
-            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
-            parseData(inst.data, inst.w, bytes, currIdx);
-            res.immToRegMem = inst;
+            res.immToRegMem = createImmToRegOrMem(opcodeByte, bytes, currIdx);
             res.type = InstType::MOV;
             break;
         }
@@ -105,34 +127,17 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
 
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:
         {
-            // TODO: Copy pasta is not great.
-            u8 addrModByte = bytes[currIdx++];
-            RegMemToFromReg inst = {};
-            inst.d = d(opcodeByte);
-            inst.w = w(opcodeByte);
-            inst.mod = mod(addrModByte);
-            inst.reg = reg(addrModByte);
-            inst.rm = rm(addrModByte);
-            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
-            res.regMemToFromReg = inst;
+            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
             res.type = InstType::ADD;
             break;
         }
         case IMM_TO_FROM_REG_OR_MEM:
         {
-            // NOTE: This combindes add and sub
-            // TODO: Copy pasta is not great.
-            u8 addrModByte = bytes[currIdx++];
-            ImmToRegMem inst = {};
-            inst.s = s(opcodeByte); // TODO: What is this used for ?
-            inst.mod = mod(addrModByte);
-            inst.reg = reg(addrModByte);
-            inst.rm = rm(addrModByte);
-            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
-            parseData(inst.data, 0, bytes, currIdx);
-            res.immToRegMem = inst;
+            u8 wOverride = 0;
+            res.immToRegMem = createImmToRegOrMem(opcodeByte, bytes, currIdx, &wOverride);
 
-            switch (inst.reg) {
+            // The type of instruction is deduced by the reg field in this lovely case.
+            switch (res.immToRegMem.reg) {
                 case 0b000: res.type = InstType::ADD; break;
                 case 0b101: res.type = InstType::SUB; break;
                 default: Panic(false, "[BUG] Failed to set instruction type");
@@ -142,36 +147,20 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
         }
         case ADD_IMM_TO_ACC:
         {
-            ImmToAcc inst = {};
-            inst.w = w(opcodeByte);
-            parseData(inst.data, inst.w, bytes, currIdx);
-            res.immToAcc = inst;
+            res.immToAcc = createImmToAcc(opcodeByte, currIdx);
             res.type = InstType::ADD;
             break;
         }
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:
         {
-            // TODO: Copy pasta is not great.
-            u8 addrModByte = bytes[currIdx++];
-            RegMemToFromReg inst = {};
-            inst.d = d(opcodeByte);
-            inst.w = w(opcodeByte);
-            inst.mod = mod(addrModByte);
-            inst.reg = reg(addrModByte);
-            inst.rm = rm(addrModByte);
-            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
-            res.regMemToFromReg = inst;
+            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
             res.type = InstType::SUB;
             break;
         }
         case SUB_IMM_FROM_ACC:
         {
-            // TODO: Copy pasta is not great.
-            ImmToAcc inst = {};
-            inst.w = w(opcodeByte);
-            parseData(inst.data, inst.w, bytes, currIdx);
-            res.immToAcc = inst;
+            res.immToAcc = createImmToAcc(opcodeByte, currIdx);
             res.type = InstType::SUB;
             break;
         }
@@ -372,7 +361,7 @@ void encodeAsm8086(core::str_builder<>& sb, const Inst& inst) {
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY: break;
 
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:  encodeInst(sb, inst.regMemToFromReg); return;
-        case IMM_TO_FROM_REG_OR_MEM:   encodeInst(sb, inst.immToRegMem);     return;
+        case IMM_TO_FROM_REG_OR_MEM:           encodeInst(sb, inst.immToRegMem);     return;
         case ADD_IMM_TO_ACC:                   encodeInst(sb, inst.immToAcc);        return;
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:  encodeInst(sb, inst.regMemToFromReg); return;

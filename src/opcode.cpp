@@ -13,7 +13,7 @@ const char* opcodeToCptr(Opcode o) {
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:   return "MOV segment register to register/memory";
 
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:    return "Add register/memory with register to edit";
-        case IMM_TO_FROM_REG_OR_MEM:     return "Immediate to register/memory";
+        case IMM_TO_FROM_REG_OR_MEM:             return "Immediate to register/memory";
         case ADD_IMM_TO_ACC:                     return "Immediate to accumulator";
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:    return "Subtract register/memory with register to edit";
@@ -45,7 +45,7 @@ Opcode opcodeDecode(u8 opcodeByte) {
     switch (opcodeByte) {
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:   return MOV_REG_OR_MEM_TO_OR_FROM_REG;
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT: return ADD_REG_OR_MEM_WITH_REG_TO_EDIT;
-        case IMM_TO_FROM_REG_OR_MEM:  return IMM_TO_FROM_REG_OR_MEM;
+        case IMM_TO_FROM_REG_OR_MEM:          return IMM_TO_FROM_REG_OR_MEM;
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT: return SUB_REG_OR_MEM_WITH_REG_TO_EDIT;
     }
 

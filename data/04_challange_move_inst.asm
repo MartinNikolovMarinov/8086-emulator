@@ -6,8 +6,8 @@ mov [si - 300], cx
 mov dx, [bx - 32]
 
 ; Explicit sizes
-mov [bp + di], byte 7
-mov [di + 901], word 347
+mov byte [bp + di], 7
+mov word [di + 901], 347
 
 ; Direct address
 mov bp, [5]

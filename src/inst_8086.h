@@ -14,17 +14,12 @@ enum struct InstType : u8 {
 
 // Register/memory to/from register.
 //
-// [byte1] - opcode:6, d|v:1, w:1
+// [byte1] - opcode:6, d:1, w:1
 // [byte2] - mod:2, reg:3, rm:3
 // [byte3] - (disp:8)
 // [byte4] - (disp:8)
 struct RegMemToFromReg {
-    union
-    {
-        u8 d : 1;
-        u8 v : 1;
-    };
-
+    u8 d : 1;
     u8 w : 1;
     u8 reg : 3;
     u8 rm : 3;
@@ -45,14 +40,17 @@ struct ImmToReg {
 
 // Immediate to register or memory.
 //
-// [byte1] - opcode:7, w:1
+// [byte1] - opcode:7, w|s:1
 // [byte2] - mod:2, reg:3 (constant), rm:3
 // [byte3] - (disp:8)
 // [byte4] - (disp:8)
 // [byte5] - data:8
 // [byte6] - (data:8)
 struct ImmToRegMem {
-    u8 w : 1;
+    union {
+        u8 w : 1;
+        u8 s : 1;
+    };
     u8 reg : 3;
     u8 rm : 3;
     Mod mod : 2;
@@ -71,6 +69,16 @@ struct MemAccToAccMem {
     u8 addr[2];
 };
 
+// Immediate to accumulator.
+//
+// [byte1] - opcode:7, w:1
+// [byte2] - data:8
+// [byte3] - (data:8)
+struct ImmToAcc {
+    u8 w : 1;
+    u8 data[2];
+};
+
 struct Inst {
     InstType type;
     Opcode opcode;
@@ -79,6 +87,7 @@ struct Inst {
         ImmToReg        immToReg;
         ImmToRegMem     immToRegMem;
         MemAccToAccMem  memAccToAccMem;
+        ImmToAcc        immToAcc;
     };
 };
 

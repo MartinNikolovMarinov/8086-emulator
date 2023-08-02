@@ -11,7 +11,7 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
     auto o   = [](u8 b) -> Opcode { return opcodeDecode(b); };
     auto w   = [](u8 b) -> bool   { return (b >> 0) & 0b1; };
     auto d   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
-    [[maybe_unused]] auto s   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
+    auto s   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
     [[maybe_unused]] auto v   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
     auto mod = [](u8 b) -> Mod    { return Mod((b >> 6) & 0b11); };
     auto reg = [](u8 b) -> u8     { return (b >> 3) & 0b111; };
@@ -52,7 +52,7 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             parseData(inst.data, inst.w, bytes, currIdx);
             res.type = InstType::MOV;
             res.immToReg = inst;
-            return res;
+            break;
         }
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
         {
@@ -66,7 +66,7 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
             res.regMemToFromReg = inst;
             res.type = InstType::MOV;
-            return res;
+            break;
         }
         case MOV_MEM_TO_ACC: [[fallthrough]];
         case MOV_ACC_TO_MEM:
@@ -76,7 +76,7 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             inst.w = w(opcodeByte);
             parseData(inst.addr, 1, bytes, currIdx);
             res.memAccToAccMem = inst;
-            return res;
+            break;
         }
         case MOV_IMM_TO_REG_OR_MEM:
         {
@@ -90,32 +90,90 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             parseData(inst.data, inst.w, bytes, currIdx);
             res.immToRegMem = inst;
             res.type = InstType::MOV;
-            return res;
+            break;
         }
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
         {
             Assert(false, "Not implemented");
-            return res;
+            break;
         }
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:
         {
             Assert(false, "Not implemented");
-            return res;
+            break;
         }
+
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:
         {
-            Assert(false, "Not implemented");
-            return res;
+            // TODO: Copy pasta is not great.
+            u8 addrModByte = bytes[currIdx++];
+            RegMemToFromReg inst = {};
+            inst.d = d(opcodeByte);
+            inst.w = w(opcodeByte);
+            inst.mod = mod(addrModByte);
+            inst.reg = reg(addrModByte);
+            inst.rm = rm(addrModByte);
+            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
+            res.regMemToFromReg = inst;
+            res.type = InstType::ADD;
+            break;
         }
-        case ADD_IMM_TO_REG_OR_MEM:
+        case IMM_TO_FROM_REG_OR_MEM:
         {
-            Assert(false, "Not implemented");
-            return res;
+            // NOTE: This combindes add and sub
+            // TODO: Copy pasta is not great.
+            u8 addrModByte = bytes[currIdx++];
+            ImmToRegMem inst = {};
+            inst.s = s(opcodeByte); // TODO: What is this used for ?
+            inst.mod = mod(addrModByte);
+            inst.reg = reg(addrModByte);
+            inst.rm = rm(addrModByte);
+            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
+            parseData(inst.data, 0, bytes, currIdx);
+            res.immToRegMem = inst;
+
+            switch (inst.reg) {
+                case 0b000: res.type = InstType::ADD; break;
+                case 0b101: res.type = InstType::SUB; break;
+                default: Panic(false, "[BUG] Failed to set instruction type");
+            }
+
+            break;
         }
         case ADD_IMM_TO_ACC:
         {
-            Assert(false, "Not implemented");
-            return res;
+            ImmToAcc inst = {};
+            inst.w = w(opcodeByte);
+            parseData(inst.data, inst.w, bytes, currIdx);
+            res.immToAcc = inst;
+            res.type = InstType::ADD;
+            break;
+        }
+
+        case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:
+        {
+            // TODO: Copy pasta is not great.
+            u8 addrModByte = bytes[currIdx++];
+            RegMemToFromReg inst = {};
+            inst.d = d(opcodeByte);
+            inst.w = w(opcodeByte);
+            inst.mod = mod(addrModByte);
+            inst.reg = reg(addrModByte);
+            inst.rm = rm(addrModByte);
+            parseDisp(inst.disp, inst.mod, inst.rm, bytes, currIdx);
+            res.regMemToFromReg = inst;
+            res.type = InstType::SUB;
+            break;
+        }
+        case SUB_IMM_FROM_ACC:
+        {
+            // TODO: Copy pasta is not great.
+            ImmToAcc inst = {};
+            inst.w = w(opcodeByte);
+            parseData(inst.data, inst.w, bytes, currIdx);
+            res.immToAcc = inst;
+            res.type = InstType::SUB;
+            break;
         }
     }
 
@@ -238,7 +296,7 @@ void encodeInst(core::str_builder<>& sb, const ImmToReg& inst) {
 void encodeInst(core::str_builder<>& sb, const ImmToRegMem& inst) {
     u8 w = inst.w;
     auto rm = inst.rm;
-    // auto mod = inst.mod;
+    auto mod = inst.mod;
     u8 dispLow = inst.disp[0];
     u8 dispHigh = inst.disp[1];
     u8 dataLow = inst.data[0];
@@ -246,11 +304,19 @@ void encodeInst(core::str_builder<>& sb, const ImmToRegMem& inst) {
     u16 disp = u16FromLowAndHi((w == 1), dispLow, dispHigh);
     u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
 
-    sb.append("[");
-    appendEffectiveCalc(sb, rm, disp, false);
-    sb.append("]");
-    sb.append(", ");
-    appendImmediate(sb, data);
+    if (mod == MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT) {
+        appendReg(sb, rm, w);
+        sb.append(", ");
+        appendImmediate(sb, data);
+    }
+    else {
+        sb.append(w ? "word " : "byte ");
+        sb.append("[");
+        appendEffectiveCalc(sb, rm, disp, false);
+        sb.append("]");
+        sb.append(", ");
+        appendImmediate(sb, data);
+    }
 }
 
 void encodeInst(core::str_builder<>& sb, const MemAccToAccMem& inst) {
@@ -262,19 +328,31 @@ void encodeInst(core::str_builder<>& sb, const MemAccToAccMem& inst) {
     u16 addr = u16FromLowAndHi((w == 1), addrLow, addrHigh);
 
     if (d) {
-        appendReg(sb, reg, w);
-        sb.append(", ");
         sb.append("[");
         appendImmediate(sb, addr);
         sb.append("]");
+        sb.append(", ");
+        appendReg(sb, reg, w);
     }
     else {
+        appendReg(sb, reg, w);
+        sb.append(", ");
         sb.append("[");
         appendImmediate(sb, addr);
         sb.append("]");
-        sb.append(", ");
-        appendReg(sb, reg, w);
     }
+}
+
+void encodeInst(core::str_builder<>& sb, const ImmToAcc& inst) {
+    u8 w = inst.w;
+    u8 reg = 0b000;
+    u8 dataLow = inst.data[0];
+    u8 dataHigh = inst.data[1];
+    u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
+
+    appendReg(sb, reg, w);
+    sb.append(", ");
+    appendImmediateSigned(sb, data, false);
 }
 
 }
@@ -293,9 +371,12 @@ void encodeAsm8086(core::str_builder<>& sb, const Inst& inst) {
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG: break;
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY: break;
 
-        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:  break;
-        case ADD_IMM_TO_REG_OR_MEM:            break;
-        case ADD_IMM_TO_ACC:                   break;
+        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:  encodeInst(sb, inst.regMemToFromReg); return;
+        case IMM_TO_FROM_REG_OR_MEM:   encodeInst(sb, inst.immToRegMem);     return;
+        case ADD_IMM_TO_ACC:                   encodeInst(sb, inst.immToAcc);        return;
+
+        case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:  encodeInst(sb, inst.regMemToFromReg); return;
+        case SUB_IMM_FROM_ACC:                 encodeInst(sb, inst.immToAcc);        return;
     }
 
     sb.append("encoding failed");

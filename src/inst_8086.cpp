@@ -140,6 +140,7 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             switch (res.immToRegMem.reg) {
                 case 0b000: res.type = InstType::ADD; break;
                 case 0b101: res.type = InstType::SUB; break;
+                case 0b111: res.type = InstType::CMP; break;
                 default: Panic(false, "[BUG] Failed to set instruction type");
             }
 
@@ -164,6 +165,19 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             res.type = InstType::SUB;
             break;
         }
+
+        case CMP_REG_OR_MEM_WITH_REG:
+        {
+            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
+            res.type = InstType::CMP;
+            break;
+        }
+        case CMP_IMM_WITH_ACC:
+        {
+            res.immToAcc = createImmToAcc(opcodeByte, currIdx);
+            res.type = InstType::CMP;
+            break;
+        }
     }
 
     return res;
@@ -176,6 +190,7 @@ const char* instTypeToCptr(InstType t) {
         case InstType::MOV: return "mov";
         case InstType::ADD: return "add";
         case InstType::SUB: return "sub";
+        case InstType::CMP: return "cmp";
         case InstType::SENTINEL: break;
     }
     return "unknown";
@@ -298,6 +313,14 @@ void encodeInst(core::str_builder<>& sb, const ImmToRegMem& inst) {
         sb.append(", ");
         appendImmediate(sb, data);
     }
+    else if (isDirectAddressing(mod, rm)) {
+        sb.append(w ? "word " : "byte ");
+        sb.append("[");
+        appendImmediate(sb, disp);
+        sb.append("]");
+        sb.append(", ");
+        appendImmediate(sb, data);
+    }
     else {
         sb.append(w ? "word " : "byte ");
         sb.append("[");
@@ -351,21 +374,25 @@ void encodeAsm8086(core::str_builder<>& sb, const Inst& inst) {
     sb.append(" ");
 
     switch (inst.opcode) {
-        case MOV_REG_OR_MEM_TO_OR_FROM_REG:   encodeInst(sb, inst.regMemToFromReg); return;
-        case MOV_IMM_TO_REG:                  encodeInst(sb, inst.immToReg);        return;
-        case MOV_IMM_TO_REG_OR_MEM:           encodeInst(sb, inst.immToRegMem);     return;
-        case MOV_ACC_TO_MEM:                                                        [[fallthrough]];
-        case MOV_MEM_TO_ACC:                  encodeInst(sb, inst.memAccToAccMem);  return;
+        case MOV_REG_OR_MEM_TO_OR_FROM_REG:                                          [[fallthrough]];
+        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:                                        [[fallthrough]];
+        case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:                                        [[fallthrough]];
+        case CMP_REG_OR_MEM_WITH_REG:          encodeInst(sb, inst.regMemToFromReg); return;
+
+        case MOV_IMM_TO_REG_OR_MEM:                                                  [[fallthrough]];
+        case IMM_TO_FROM_REG_OR_MEM:           encodeInst(sb, inst.immToRegMem);     return;
+
+        case ADD_IMM_TO_ACC:                                                         [[fallthrough]];
+        case SUB_IMM_FROM_ACC:                                                       [[fallthrough]];
+        case CMP_IMM_WITH_ACC:                 encodeInst(sb, inst.immToAcc);        return;
+
+        case MOV_IMM_TO_REG:                   encodeInst(sb, inst.immToReg);        return;
+
+        case MOV_ACC_TO_MEM:                                                         [[fallthrough]];
+        case MOV_MEM_TO_ACC:                   encodeInst(sb, inst.memAccToAccMem);  return;
 
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG: break;
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY: break;
-
-        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:  encodeInst(sb, inst.regMemToFromReg); return;
-        case IMM_TO_FROM_REG_OR_MEM:           encodeInst(sb, inst.immToRegMem);     return;
-        case ADD_IMM_TO_ACC:                   encodeInst(sb, inst.immToAcc);        return;
-
-        case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:  encodeInst(sb, inst.regMemToFromReg); return;
-        case SUB_IMM_FROM_ACC:                 encodeInst(sb, inst.immToAcc);        return;
     }
 
     sb.append("encoding failed");

@@ -95,8 +95,9 @@ enum Opcode : u8 {
     // 6 bit opcodes
     MOV_REG_OR_MEM_TO_OR_FROM_REG       = 0b100010, // mov 1
     ADD_REG_OR_MEM_WITH_REG_TO_EDIT     = 0b000000, // add 1
-    IMM_TO_FROM_REG_OR_MEM              = 0b100000, // add/sub 2 (this is a very special boy...)
+    IMM_TO_FROM_REG_OR_MEM              = 0b100000, // add/sub/cmp 2 (this is a very special boy...)
     SUB_REG_OR_MEM_WITH_REG_TO_EDIT     = 0b001010, // sub 1
+    CMP_REG_OR_MEM_WITH_REG             = 0b001110, // cmp 1
 
     // 7 bit opcodes
     MOV_IMM_TO_REG_OR_MEM               = 0b1100011, // mov 2
@@ -104,6 +105,7 @@ enum Opcode : u8 {
     MOV_ACC_TO_MEM                      = 0b1010001, // mov 5
     ADD_IMM_TO_ACC                      = 0b0000010, // add 3
     SUB_IMM_FROM_ACC                    = 0b0010110, // sub 2
+    CMP_IMM_WITH_ACC                    = 0b0011110, // cmp 3
 
     // 8 bit opcodes
     MOV_REG_OR_MEMORY_TO_SEGMENT_REG    = 0b10001110, // 8 bits

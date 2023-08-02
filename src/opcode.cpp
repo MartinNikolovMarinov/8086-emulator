@@ -18,6 +18,9 @@ const char* opcodeToCptr(Opcode o) {
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:    return "Subtract register/memory with register to edit";
         case SUB_IMM_FROM_ACC:                   return "Immediate from accumulator";
+
+        case CMP_REG_OR_MEM_WITH_REG:            return "Compare register/memory with register";
+        case CMP_IMM_WITH_ACC:                   return "Compare immediate with accumulator";
     }
 
     return "UNKNOWN OPCODE";
@@ -38,6 +41,7 @@ Opcode opcodeDecode(u8 opcodeByte) {
         case MOV_ACC_TO_MEM:        return MOV_ACC_TO_MEM;
         case ADD_IMM_TO_ACC:        return ADD_IMM_TO_ACC;
         case SUB_IMM_FROM_ACC:      return SUB_IMM_FROM_ACC;
+        case CMP_IMM_WITH_ACC:      return CMP_IMM_WITH_ACC;
     }
 
     // Check 6 bit opcodes:
@@ -47,6 +51,7 @@ Opcode opcodeDecode(u8 opcodeByte) {
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT: return ADD_REG_OR_MEM_WITH_REG_TO_EDIT;
         case IMM_TO_FROM_REG_OR_MEM:          return IMM_TO_FROM_REG_OR_MEM;
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT: return SUB_REG_OR_MEM_WITH_REG_TO_EDIT;
+        case CMP_REG_OR_MEM_WITH_REG:         return CMP_REG_OR_MEM_WITH_REG;
     }
 
     // Check 5 bit opcodes:

@@ -8,6 +8,7 @@ enum struct InstType : u8 {
     MOV,
     ADD,
     SUB,
+    CMP,
 
     SENTINEL
 };

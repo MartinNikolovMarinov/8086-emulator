@@ -85,6 +85,8 @@
  *   operand and/or the actual value of an immediate constant operand.
 */
 
+namespace asm8086 {
+
 // Enumeration for all instruction opcodes. From Table 4-12. 8086/8088 Instruction Set.
 enum Opcode : u8 {
     // 4 bit opcodes
@@ -108,3 +110,5 @@ enum Opcode : u8 {
 
 const char* opcodeToCptr(Opcode o);
 Opcode opcodeDecode(u8 opcodeByte);
+
+} // namespace asm8086

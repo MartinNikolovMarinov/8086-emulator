@@ -3,9 +3,11 @@
 #include <fmt/format.h>
 #include <fcntl.h>
 
-void debugPrintInst(const Inst8086& inst) {
+using namespace asm8086;
+
+void debugPrintInst(const Inst& inst) {
     core::str_builder sb;
-    encodeInst(sb, inst);
+    encodeAsm8086(sb, inst);
     fmt::print("{}\n", sb.view().buff);
 }
 
@@ -20,14 +22,14 @@ i32 main(i32 argc, char const** argv) {
     i32 idx = 0;
     i32 instCount = 0;
     while (idx < binaryData.len()) {
-        auto inst = decodeInst(binaryData, idx);
+        auto inst = decodeAsm8086(binaryData, idx);
 
 #if defined(DEBUG_PRINT_INSTRUCTIONS) && DEBUG_PRINT_INSTRUCTIONS == 1
         debugPrintInst(inst);
 #endif
 
-        encodeInst(encodedStream, inst);
-        encodedStream.append("\n");
+        // encodeInst(encodedStream, inst);
+        // encodedStream.append("\n");
         instCount++;
     }
 

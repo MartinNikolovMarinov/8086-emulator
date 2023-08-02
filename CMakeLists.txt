@@ -16,11 +16,8 @@ add_executable(${PROJECT_NAME}
     src/inst_8086.cpp
     src/inst_8086.h
     src/mod.h
-    src/mov.h
-    src/mov.cpp
     src/opcode.cpp
     src/opcode.h
-    src/utils.cpp
     src/utils.h
 )
 

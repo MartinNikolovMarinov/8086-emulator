@@ -1,5 +1,7 @@
 #include "opcode.h"
 
+namespace asm8086 {
+
 const char* opcodeToCptr(Opcode o) {
     switch (o) {
         case MOV_IMM_TO_REG:                     return "MOV immediate to register";
@@ -56,3 +58,4 @@ Opcode opcodeDecode(u8 opcodeByte) {
     return Opcode(0);
 }
 
+} // namespace asm8086

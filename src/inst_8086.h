@@ -5,6 +5,7 @@
 namespace asm8086 {
 
 enum struct InstType : u8 {
+    UNKNOWN,
     MOV,
     ADD,
     SUB,
@@ -13,87 +14,51 @@ enum struct InstType : u8 {
     SENTINEL
 };
 
-// Register/memory to/from register.
-//
-// [byte1] - opcode:6, d:1, w:1
-// [byte2] - mod:2, reg:3, rm:3
-// [byte3] - (disp:8)
-// [byte4] - (disp:8)
-struct RegMemToFromReg {
+enum struct Operands : u8 {
+    None,
+    Memory_Accumulator,
+    Memory_Register,
+    Memory_Immediate,
+
+    Register_Register,
+    Register_Memory,
+    Register_Immediate,
+
+    Accumulator_Memory,
+    Accumulator_Immediate,
+
+    SegReg_Register16,
+    SetReg_Memory16,
+    Register16_SegReg,
+    Memory_SegReg,
+};
+
+struct Instruction {
+    // byte 1
+    Opcode opcode; // is variable length
     u8 d : 1;
+    u8 s : 1;
     u8 w : 1;
+
+    // byte 2
+    Mod mod : 2;
     u8 reg : 3;
     u8 rm : 3;
-    Mod mod : 2;
+
+    // byte 3
     u8 disp[2];
-};
 
-// Immediate to register. Very specific for the MOV instruction.
-//
-// [byte1] - opcode:4, w:1, reg:3
-// [byte2] - data:8
-// [byte3] - (data:8)
-struct ImmToReg {
-    u8 w : 1;
-    u8 reg : 3;
+    // byte 4
     u8 data[2];
-};
 
-// Immediate to register or memory.
-//
-// [byte1] - opcode:7, w|s:1
-// [byte2] - mod:2, reg:3 (constant), rm:3
-// [byte3] - (disp:8)
-// [byte4] - (disp:8)
-// [byte5] - data:8
-// [byte6] - (data:8)
-struct ImmToRegMem {
-    union {
-        u8 w : 1;
-        u8 s : 1;
-    };
-    u8 reg : 3;
-    u8 rm : 3;
-    Mod mod : 2;
-    u8 disp[2];
-    u8 data[2];
-};
-
-// Memory/accumulator to accumulator/memory.
-//
-// [byte1] - opcode:6, d:1, w:1
-// [byte2] - addr-lo:8
-// [byte3] - addr-hi:8
-struct MemAccToAccMem {
-    u8 d : 1;
-    u8 w : 1;
-    u8 addr[2];
-};
-
-// Immediate to accumulator.
-//
-// [byte1] - opcode:7, w:1
-// [byte2] - data:8
-// [byte3] - (data:8)
-struct ImmToAcc {
-    u8 w : 1;
-    u8 data[2];
-};
-
-struct Inst {
+    // Decoded fields.
     InstType type;
-    Opcode opcode;
-    union {
-        RegMemToFromReg regMemToFromReg;
-        ImmToReg        immToReg;
-        ImmToRegMem     immToRegMem;
-        MemAccToAccMem  memAccToAccMem;
-        ImmToAcc        immToAcc;
-    };
+    u8 byteCount;
+    Operands operands;
 };
 
-Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx);
-void encodeAsm8086(core::str_builder<>& sb, const Inst& inst);
+Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx);
+void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst);
 
 } // namespace asm8086
 

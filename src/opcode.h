@@ -115,4 +115,26 @@ enum Opcode : u8 {
 const char* opcodeToCptr(Opcode o);
 Opcode opcodeDecode(u8 opcodeByte);
 
+struct FieldDisplacements {
+    struct Displacement {
+        u8 offset;
+        u8 mask;
+        i8 byteIdx; // Negative values mean that the field is not present.
+    };
+
+    Displacement opcode;
+    Displacement d;
+    Displacement s;
+    Displacement w;
+    Displacement mod;
+    Displacement reg;
+    Displacement rm;
+    Displacement disp1;
+    Displacement disp2;
+    Displacement data1;
+    Displacement data2;
+};
+
+FieldDisplacements getFieldDisplacements(Opcode opcode);
+
 } // namespace asm8086

@@ -5,113 +5,126 @@ namespace asm8086 {
 
 namespace {
 
-bool isDirectAddressing(Mod mod, u8 rm) {
+bool isDirectAddrMode(Mod mod, u8 rm) {
     return mod == MOD_MEMORY_NO_DISPLACEMENT && rm == 0b110;
+}
+
+bool isDisplacementMode(Mod mod) {
+    return mod == MOD_MEMORY_8_BIT_DISPLACEMENT ||
+           mod == MOD_MEMORY_16_BIT_DISPLACEMENT;
+}
+
+bool isEffectiveAddrCalc(Mod mod) {
+    return mod != MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT;
+}
+
+bool is8bitDisplacement(Mod mod) {
+    return mod == MOD_MEMORY_8_BIT_DISPLACEMENT;
+}
+
+bool is16bitDisplacement(Mod mod) {
+    return mod == MOD_MEMORY_16_BIT_DISPLACEMENT;
 }
 
 } // namespace
 
-Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
-    auto o   = [](u8 b) -> Opcode { return opcodeDecode(b); };
-    auto w   = [](u8 b) -> bool   { return (b >> 0) & 0b1; };
-    auto d   = [](u8 b) -> bool   { return (b >> 1) & 0b1; };
-    auto mod = [](u8 b) -> Mod    { return Mod((b >> 6) & 0b11); };
-    auto reg = [](u8 b) -> u8     { return (b >> 3) & 0b111; };
-    auto rm  = [](u8 b) -> u8     { return (b >> 0) & 0b111; };
-
-    auto parseDisp = [](u8 disp[2], Mod mod, u8 rm, auto& bytes, i32& idx) {
-        if (mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
-            disp[0] = bytes[idx++];
+Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
+    auto decodeFromDisplacements = [&](auto& bytes, i32 idx, const FieldDisplacements& fd, Instruction& inst) {
+        i8 ibc = 0;
+        if (fd.d.byteIdx >= 0) {
+            ibc = core::max(ibc, fd.d.byteIdx);
+            inst.d = (bytes[idx + ibc] & fd.d.mask) >> fd.d.offset;
         }
-        else if (mod == MOD_MEMORY_16_BIT_DISPLACEMENT || isDirectAddressing(mod, rm)) {
-            disp[0] = bytes[idx++];
-            disp[1] = bytes[idx++];
+        if (fd.s.byteIdx >= 0) {
+            ibc = core::max(ibc, fd.s.byteIdx);
+            inst.s = (bytes[idx + ibc] & fd.s.mask) >> fd.s.offset;
         }
-    };
-
-    auto parseData = [](u8 data[2], u8 w, auto& bytes, i32& idx) {
-        if (w) {
-            data[0] = bytes[idx++];
-            data[1] = bytes[idx++];
+        if (fd.w.offset >= 0) {
+            ibc = core::max(ibc, fd.w.byteIdx);
+            inst.w = (bytes[idx + ibc] & fd.w.mask) >> fd.w.offset;
         }
-        else {
-            data[0] = bytes[idx++];
+        if (fd.mod.byteIdx >= 0) {
+            ibc = core::max(ibc, fd.mod.byteIdx);
+            inst.mod = Mod((bytes[idx + ibc] & fd.mod.mask) >> fd.mod.offset);
         }
-    };
+        if (fd.reg.byteIdx >= 0) {
+            ibc = core::max(ibc, fd.reg.byteIdx);
+            inst.reg = (bytes[idx + ibc] & fd.reg.mask) >> fd.reg.offset;
+        }
+        if (fd.rm.byteIdx >= 0) {
+            ibc = core::max(ibc, fd.rm.byteIdx);
+            inst.rm = (bytes[idx + ibc] & fd.rm.mask) >> fd.rm.offset;
+        }
 
-    auto createImmToReg = [&](u8 opcodeByte, auto& bytes, i32& idx) -> ImmToReg {
-        ImmToReg inst = {};
-        inst.w = (opcodeByte >> 3) & 0b1;
-        inst.reg = opcodeByte & 0b111;
-        parseData(inst.data, inst.w, bytes, idx);
+        // Displacement byte(s) decoding.
+        if (fd.disp1.byteIdx > 0 && inst.mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
+            inst.disp[0] = bytes[idx + ibc + 1];
+            ibc++;
+        }
+        else if (fd.disp1.byteIdx > 0 &&
+                 (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT ||
+                  isDirectAddrMode(inst.mod, inst.rm))
+        ) {
+            inst.disp[0] = bytes[idx + ibc + 1];
+            inst.disp[1] = bytes[idx + ibc + 2];
+            ibc += 2;
+        }
+
+        bool dataIsWord = inst.s ? false : (inst.w == 1);
+
+        // Data byte(s) decoding.
+        if (fd.data1.byteIdx > 0 && !dataIsWord) {
+            inst.data[0] = bytes[idx + ibc + 1];
+            ibc++;
+        }
+        else if (fd.data1.byteIdx > 0 && dataIsWord) {
+            inst.data[0] = bytes[idx + ibc + 1];
+            inst.data[1] = bytes[idx + ibc + 2];
+            ibc += 2;
+        }
+
+        inst.byteCount += i8(ibc + 1);
         return inst;
     };
 
-    auto createRegOrMemToOrFromReg = [&](u8 opcodeByte, auto& bytes, i32& idx) -> RegMemToFromReg {
-        u8 addrModByte = bytes[idx++];
-        RegMemToFromReg inst = {};
-        inst.d = d(opcodeByte);
-        inst.w = w(opcodeByte);
-        inst.mod = mod(addrModByte);
-        inst.reg = reg(addrModByte);
-        inst.rm = rm(addrModByte);
-        parseDisp(inst.disp, inst.mod, inst.rm, bytes, idx);
-        return inst;
-    };
+    Opcode opcode = opcodeDecode(bytes[idx]);
+    auto fd = getFieldDisplacements(opcode);
 
-    auto createAccToMem = [&](u8 opcodeByte, i32& idx) -> MemAccToAccMem {
-        MemAccToAccMem inst = {};
-        inst.d = d(opcodeByte);
-        inst.w = w(opcodeByte);
-        parseData(inst.addr, 1, bytes, idx);
-        return inst;
-    };
+    Instruction inst = {};
+    inst.opcode = opcode;
+    decodeFromDisplacements(bytes, idx, fd, inst);
+    idx += inst.byteCount;
 
-    auto createImmToRegOrMem = [&](u8 opcodeByte, auto& bytes, i32& idx, u8* wOverride = nullptr) -> ImmToRegMem {
-        u8 addrModByte = bytes[idx++];
-        ImmToRegMem inst = {};
-        inst.w = w(opcodeByte);
-        inst.mod = mod(addrModByte);
-        inst.reg = reg(addrModByte);
-        inst.rm = rm(addrModByte);
-        parseDisp(inst.disp, inst.mod, inst.rm, bytes, idx);
-        parseData(inst.data, (wOverride == nullptr) ? inst.w : *wOverride, bytes, idx);
-        return inst;
-    };
-
-    auto createImmToAcc = [&](u8 opcodeByte, i32& idx) -> ImmToAcc {
-        ImmToAcc inst = {};
-        inst.w = w(opcodeByte);
-        parseData(inst.data, inst.w, bytes, idx);
-        return inst;
-    };
-
-    i32 currIdx = idx;
-    defer { idx += currIdx - idx; };
-    u8 opcodeByte = bytes[currIdx++];
-    Inst res = {};
-    res.opcode = o(opcodeByte);
-
-    switch (res.opcode) {
+    switch (inst.opcode) {
         case MOV_IMM_TO_REG:
-            res.immToReg = createImmToReg(opcodeByte, bytes, currIdx);
-            res.type = InstType::MOV;
+        {
+            inst.operands = Operands::Register_Immediate;
+            inst.rm = inst.reg; // special case
+            inst.type = InstType::MOV;
             break;
+        }
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
-            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
-            res.type = InstType::MOV;
+        {
+            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            inst.type = InstType::MOV;
             break;
-        case MOV_MEM_TO_ACC: [[fallthrough]];
+        }
+        case MOV_MEM_TO_ACC:
+        {
+            inst.operands = Operands::Memory_Accumulator;
+            inst.type = InstType::MOV;
+            break;
+        }
         case MOV_ACC_TO_MEM:
         {
-            res.memAccToAccMem = createAccToMem(opcodeByte, currIdx);
-            res.type = InstType::MOV;
+            inst.operands = Operands::Accumulator_Memory;
+            inst.type = InstType::MOV;
             break;
         }
         case MOV_IMM_TO_REG_OR_MEM:
         {
-            res.immToRegMem = createImmToRegOrMem(opcodeByte, bytes, currIdx);
-            res.type = InstType::MOV;
+            inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_Immediate : Operands::Register_Immediate;
+            inst.type = InstType::MOV;
             break;
         }
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
@@ -125,62 +138,70 @@ Inst decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             break;
         }
 
-        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:
-        {
-            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
-            res.type = InstType::ADD;
-            break;
-        }
         case IMM_TO_FROM_REG_OR_MEM:
         {
-            u8 wOverride = 0;
-            res.immToRegMem = createImmToRegOrMem(opcodeByte, bytes, currIdx, &wOverride);
-
             // The type of instruction is deduced by the reg field in this lovely case.
-            switch (res.immToRegMem.reg) {
-                case 0b000: res.type = InstType::ADD; break;
-                case 0b101: res.type = InstType::SUB; break;
-                case 0b111: res.type = InstType::CMP; break;
-                default: Panic(false, "[BUG] Failed to set instruction type");
+            switch (inst.reg) {
+                case 0b000:
+                    inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_Immediate : Operands::Register_Immediate;
+                    inst.type = InstType::ADD;
+                    break;
+                case 0b101:
+                    inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_Immediate : Operands::Register_Immediate;
+                    inst.type = InstType::SUB;
+                    break;
+                case 0b111:
+                    inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_Immediate : Operands::Register_Immediate;
+                    inst.type = InstType::CMP;
+                    break;
+                default:
+                    Panic(false, "[BUG] Failed to set instruction type");
             }
 
             break;
         }
+
+        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:
+        {
+            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            inst.type = InstType::ADD;
+            break;
+        }
         case ADD_IMM_TO_ACC:
         {
-            res.immToAcc = createImmToAcc(opcodeByte, currIdx);
-            res.type = InstType::ADD;
+            inst.operands = Operands::Accumulator_Immediate;
+            inst.type = InstType::ADD;
             break;
         }
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:
         {
-            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
-            res.type = InstType::SUB;
+            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            inst.type = InstType::SUB;
             break;
         }
         case SUB_IMM_FROM_ACC:
         {
-            res.immToAcc = createImmToAcc(opcodeByte, currIdx);
-            res.type = InstType::SUB;
+            inst.operands = Operands::Accumulator_Immediate;
+            inst.type = InstType::SUB;
             break;
         }
 
         case CMP_REG_OR_MEM_WITH_REG:
         {
-            res.regMemToFromReg = createRegOrMemToOrFromReg(opcodeByte, bytes, currIdx);
-            res.type = InstType::CMP;
+            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            inst.type = InstType::CMP;
             break;
         }
         case CMP_IMM_WITH_ACC:
         {
-            res.immToAcc = createImmToAcc(opcodeByte, currIdx);
-            res.type = InstType::CMP;
+            inst.operands = Operands::Accumulator_Immediate;
+            inst.type = InstType::CMP;
             break;
         }
     }
 
-    return res;
+    return inst;
 }
 
 namespace {
@@ -191,9 +212,10 @@ const char* instTypeToCptr(InstType t) {
         case InstType::ADD: return "add";
         case InstType::SUB: return "sub";
         case InstType::CMP: return "cmp";
+        case InstType::UNKNOWN: return "unknown";
         case InstType::SENTINEL: break;
     }
-    return "unknown";
+    return "invalid";
 }
                                         // 000  001   010   011   100   101   110   111
 constexpr const char* reg8bitTable[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" }; // w = 0
@@ -201,15 +223,6 @@ constexpr const char* reg16bitTable[] = { "ax", "cx", "dx", "bx", "sp", "bp", "s
 
                                         //   000       001         010        011     100   101   110   111
 constexpr const char* regDispTable[]  = { "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx" }; // w = 0
-
-void appendReg(core::str_builder<>& sb, u8 reg, bool w) {
-    if (w) {
-        sb.append(reg16bitTable[reg]);
-    }
-    else {
-        sb.append(reg8bitTable[reg]);
-    }
-}
 
 void appendImmediate(core::str_builder<>& sb, u16 i) {
     char ncptr[8] = {};
@@ -232,6 +245,15 @@ void appendImmediateSigned(core::str_builder<>& sb, i16 i, bool explictSign = tr
     sb.append(ncptr);
 }
 
+void appendReg(core::str_builder<>& sb, u8 reg, bool w) {
+    if (w) {
+        sb.append(reg16bitTable[reg]);
+    }
+    else {
+        sb.append(reg8bitTable[reg]);
+    }
+}
+
 void appendRegDisp(core::str_builder<>& sb, u8 reg, u16 disp) {
     sb.append(regDispTable[reg]);
     if (disp != 0) {
@@ -240,162 +262,106 @@ void appendRegDisp(core::str_builder<>& sb, u8 reg, u16 disp) {
     }
 }
 
-void appendEffectiveCalc(core::str_builder<>& sb, u8 regOrRm, u16 disp, bool isDirectAddressing) {
-    if (isDirectAddressing) {
-        appendImmediate(sb, disp);
-    } else {
-        appendRegDisp(sb, regOrRm, disp);
+void appendMemory(core::str_builder<>& sb, u8 w, u8 rm, u16 disp, bool isCalc) {
+    if (!isCalc) {
+        appendReg(sb, rm, w);
+    }
+    else {
+        sb.append("[");
+        appendRegDisp(sb, rm, disp);
+        sb.append("]");
     }
 }
 
-void encodeInst(core::str_builder<>& sb, const RegMemToFromReg& inst) {
-    u8 d = inst.d;
+}
+
+void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst) {
+    sb.append(instTypeToCptr(inst.type));
+    sb.append(" ");
+
     u8 w = inst.w;
     u8 reg = inst.reg;
     u8 rm = inst.rm;
     Mod mod = inst.mod;
     u8 dispLow = inst.disp[0];
     u8 dispHigh = inst.disp[1];
+    u8 dataLow = inst.data[0];
+    u8 dataHigh = inst.data[1];
+    auto operands = inst.operands;
+    bool isCalc = isEffectiveAddrCalc(mod);
+    bool isDirect = isDirectAddrMode(mod, rm);
 
-    if (mod == MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT) {
-        if (d) {
-            appendReg(sb, reg, w); sb.append(", "); appendReg(sb, rm, w);
-        }
-        else {
-            appendReg(sb, rm, w); sb.append(", "); appendReg(sb, reg, w);
-        }
+    u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
+    u16 disp = 0;
+    if (isDirect) {
+        disp = isCalc ? u16FromLowAndHi((w == 1), dispLow, dispHigh) : 0;
     }
     else {
-        bool dispIsWord = mod == MOD_MEMORY_8_BIT_DISPLACEMENT ? false : true;
-        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
-        if (d) {
-            appendReg(sb, reg, w);
-            sb.append(", ");
-            sb.append("[");
-            appendEffectiveCalc(sb, rm, disp, isDirectAddressing(mod, rm));
-            sb.append("]");
+        disp = isCalc ? u16FromLowAndHi((mod == MOD_MEMORY_16_BIT_DISPLACEMENT), dispLow, dispHigh) : 0;
+    }
+
+    auto appendMemoryAccumulator = [&]() {
+        appendReg(sb, reg, w);
+        sb.append(", ");
+        sb.append("["); appendImmediateSigned(sb, data, false); sb.append("]");
+    };
+    auto appendMemoryRegister = [&]() {
+        appendMemory(sb, w, rm, disp, isCalc);
+        sb.append(", ");
+        appendReg(sb, reg, w);
+    };
+    auto appendMemoryImmediate = [&]() {
+        sb.append(w ? "word " : "byte ");
+        if (isDirect) {
+            sb.append("["); appendImmediateSigned(sb, disp, false); sb.append("]");
         }
         else {
-            sb.append("[");
-            appendEffectiveCalc(sb, rm, disp, isDirectAddressing(mod, rm));
-            sb.append("]");
-            sb.append(", ");
-            appendReg(sb, reg, w);
+            appendMemory(sb, w, rm, disp, isCalc);
         }
-    }
-}
-
-void encodeInst(core::str_builder<>& sb, const ImmToReg& inst) {
-    u8 w = inst.w;
-    u8 reg = inst.reg;
-    u8 dataLow = inst.data[0];
-    u8 dataHigh = inst.data[1];
-    u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
-
-    appendReg(sb, reg, w);
-    sb.append(", ");
-    appendImmediateSigned(sb, data, false);
-}
-
-void encodeInst(core::str_builder<>& sb, const ImmToRegMem& inst) {
-    u8 w = inst.w;
-    auto rm = inst.rm;
-    auto mod = inst.mod;
-    u8 dispLow = inst.disp[0];
-    u8 dispHigh = inst.disp[1];
-    u8 dataLow = inst.data[0];
-    u8 dataHigh = inst.data[1];
-    u16 disp = u16FromLowAndHi((w == 1), dispLow, dispHigh);
-    u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
-
-    if (mod == MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT) {
+        sb.append(", ");
+        appendImmediateSigned(sb, data, false);
+    };
+    auto appendRegisterMemory = [&]() {
+        appendReg(sb, reg, w);
+        sb.append(", ");
+        if (isDirect) {
+            sb.append("["); appendImmediateSigned(sb, disp, false); sb.append("]");
+        }
+        else {
+            appendMemory(sb, w, rm, disp, isCalc);
+        }
+    };
+    auto appendRegisterImmediate = [&]() {
         appendReg(sb, rm, w);
         sb.append(", ");
-        appendImmediate(sb, data);
-    }
-    else if (isDirectAddressing(mod, rm)) {
-        sb.append(w ? "word " : "byte ");
-        sb.append("[");
-        appendImmediate(sb, disp);
-        sb.append("]");
+        appendImmediateSigned(sb, data, false);
+    };
+    auto appendAccumulatorMemory = [&]() {
+        sb.append("["); appendImmediateSigned(sb, data, false); sb.append("]");
         sb.append(", ");
-        appendImmediate(sb, data);
-    }
-    else {
-        sb.append(w ? "word " : "byte ");
-        sb.append("[");
-        appendEffectiveCalc(sb, rm, disp, false);
-        sb.append("]");
+        appendReg(sb, rm, w);
+    };
+    auto appendAccumulatorImmediate = [&]() {
+        appendReg(sb, rm, w);
         sb.append(", ");
-        appendImmediate(sb, data);
+        appendImmediateSigned(sb, data, false);
+    };
+
+    switch (operands) {
+        case Operands::Memory_Accumulator:    appendMemoryAccumulator();     break;
+        case Operands::Memory_Register:       appendMemoryRegister();        break;
+        case Operands::Memory_Immediate:      appendMemoryImmediate();       break;
+        case Operands::Register_Memory:       appendRegisterMemory();        break;
+        case Operands::Register_Immediate:    appendRegisterImmediate();     break;
+        case Operands::Accumulator_Memory:    appendAccumulatorMemory();     break;
+        case Operands::Accumulator_Immediate: appendAccumulatorImmediate();  break;
+        case Operands::Register_Register:                                    [[fallthrough]];
+        case Operands::SegReg_Register16:                                    [[fallthrough]];
+        case Operands::SetReg_Memory16:                                      [[fallthrough]];
+        case Operands::Register16_SegReg:                                    [[fallthrough]];
+        case Operands::Memory_SegReg:                                        [[fallthrough]];
+        case Operands::None:                  sb.append("(encoding faild)"); break;
     }
-}
-
-void encodeInst(core::str_builder<>& sb, const MemAccToAccMem& inst) {
-    u8 d = inst.d;
-    u8 w = inst.w;
-    u8 reg = 0b000;
-    u8 addrLow = inst.addr[0];
-    u8 addrHigh = inst.addr[1];
-    u16 addr = u16FromLowAndHi((w == 1), addrLow, addrHigh);
-
-    if (d) {
-        sb.append("[");
-        appendImmediate(sb, addr);
-        sb.append("]");
-        sb.append(", ");
-        appendReg(sb, reg, w);
-    }
-    else {
-        appendReg(sb, reg, w);
-        sb.append(", ");
-        sb.append("[");
-        appendImmediate(sb, addr);
-        sb.append("]");
-    }
-}
-
-void encodeInst(core::str_builder<>& sb, const ImmToAcc& inst) {
-    u8 w = inst.w;
-    u8 reg = 0b000;
-    u8 dataLow = inst.data[0];
-    u8 dataHigh = inst.data[1];
-    u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
-
-    appendReg(sb, reg, w);
-    sb.append(", ");
-    appendImmediateSigned(sb, data, false);
-}
-
-}
-
-void encodeAsm8086(core::str_builder<>& sb, const Inst& inst) {
-    sb.append(instTypeToCptr(inst.type));
-    sb.append(" ");
-
-    switch (inst.opcode) {
-        case MOV_REG_OR_MEM_TO_OR_FROM_REG:                                          [[fallthrough]];
-        case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:                                        [[fallthrough]];
-        case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:                                        [[fallthrough]];
-        case CMP_REG_OR_MEM_WITH_REG:          encodeInst(sb, inst.regMemToFromReg); return;
-
-        case MOV_IMM_TO_REG_OR_MEM:                                                  [[fallthrough]];
-        case IMM_TO_FROM_REG_OR_MEM:           encodeInst(sb, inst.immToRegMem);     return;
-
-        case ADD_IMM_TO_ACC:                                                         [[fallthrough]];
-        case SUB_IMM_FROM_ACC:                                                       [[fallthrough]];
-        case CMP_IMM_WITH_ACC:                 encodeInst(sb, inst.immToAcc);        return;
-
-        case MOV_IMM_TO_REG:                   encodeInst(sb, inst.immToReg);        return;
-
-        case MOV_ACC_TO_MEM:                                                         [[fallthrough]];
-        case MOV_MEM_TO_ACC:                   encodeInst(sb, inst.memAccToAccMem);  return;
-
-        case MOV_REG_OR_MEMORY_TO_SEGMENT_REG: break;
-        case MOV_SEGMENT_REG_TO_REG_OR_MEMORY: break;
-    }
-
-    sb.append("encoding failed");
 }
 
 } // namespace asm8086

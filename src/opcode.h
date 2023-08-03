@@ -110,6 +110,7 @@ enum Opcode : u8 {
     // 8 bit opcodes
     MOV_REG_OR_MEMORY_TO_SEGMENT_REG    = 0b10001110, // 8 bits
     MOV_SEGMENT_REG_TO_REG_OR_MEMORY    = 0b10001100, // 8 bits
+    JNEZ_ON_NOT_EQ_NOR_ZERO             = 0b01110101, // 8 bits
 };
 
 const char* opcodeToCptr(Opcode o);
@@ -133,6 +134,8 @@ struct FieldDisplacements {
     Displacement disp2;
     Displacement data1;
     Displacement data2;
+
+    i8 fixedWord;
 };
 
 FieldDisplacements getFieldDisplacements(Opcode opcode);

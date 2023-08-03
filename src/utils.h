@@ -41,4 +41,18 @@ inline constexpr u16 u16FromLowAndHi(bool isWord, u8 low, u8 high) {
 
 GUARD_TEMPLATE_DECLARATION(u16FromLowAndHi)
 
+template <typename TSmaller, typename TBigger>
+inline constexpr void safeCastSignedInt(TSmaller from, TBigger& to) {
+    static_assert(sizeof(TSmaller) < sizeof(TBigger), "Invalid cast");
+    static_assert(std::is_signed_v<TSmaller> && std::is_signed_v<TBigger>, "Not signed types");
+
+    if (from < 0) {
+        to = (-from);
+        to = -to;
+    }
+    else {
+        to = TBigger(from);
+    }
+}
+
 } // namespace asm8086

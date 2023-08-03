@@ -10,6 +10,7 @@ enum struct InstType : u8 {
     ADD,
     SUB,
     CMP,
+    JNEZ,
 
     SENTINEL
 };
@@ -26,6 +27,8 @@ enum struct Operands : u8 {
 
     Accumulator_Memory,
     Accumulator_Immediate,
+
+    ShortLabel,
 
     SegReg_Register16,
     SetReg_Memory16,
@@ -57,8 +60,14 @@ struct Instruction {
     Operands operands;
 };
 
-Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx);
-void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst);
+struct DecodingContext {
+    ptr_size idx = 0;
+    core::arr<Instruction> instructions;
+    core::arr<i64> labelAddrs;
+};
+
+void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx);
+void encodeAsm8086(core::str_builder<>& sb, const DecodingContext& ctx);
 
 } // namespace asm8086
 

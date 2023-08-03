@@ -1,6 +1,8 @@
 #include "inst_8086.h"
 #include "utils.h"
 
+#include <fmt/core.h>
+
 namespace asm8086 {
 
 namespace {
@@ -26,9 +28,7 @@ bool is16bitDisplacement(Mod mod) {
     return mod == MOD_MEMORY_16_BIT_DISPLACEMENT;
 }
 
-} // namespace
-
-Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
+Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
     auto decodeFromDisplacements = [&](auto& bytes, i32 idx, const FieldDisplacements& fd, Instruction& inst) {
         i8 ibc = 0;
         if (fd.d.byteIdx >= 0) {
@@ -70,7 +70,13 @@ Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             ibc += 2;
         }
 
-        bool dataIsWord = inst.s ? false : (inst.w == 1);
+        bool dataIsWord = false;
+        if (fd.fixedWord < 0) {
+            // Size is determined by the w or s bits.
+            dataIsWord = inst.s ? false : (inst.w == 1);
+        } else {
+            dataIsWord = fd.fixedWord == 1;
+        }
 
         // Data byte(s) decoding.
         if (fd.data1.byteIdx > 0 && !dataIsWord) {
@@ -84,16 +90,18 @@ Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
         }
 
         inst.byteCount += i8(ibc + 1);
-        return inst;
     };
 
+    auto& labelAddrs = ctx.labelAddrs;
+    auto& instructions = ctx.instructions;
+
+    ptr_size idx = ctx.idx;
     Opcode opcode = opcodeDecode(bytes[idx]);
     auto fd = getFieldDisplacements(opcode);
 
     Instruction inst = {};
     inst.opcode = opcode;
     decodeFromDisplacements(bytes, idx, fd, inst);
-    idx += inst.byteCount;
 
     switch (inst.opcode) {
         case MOV_IMM_TO_REG:
@@ -199,19 +207,48 @@ Instruction decodeAsm8086(core::arr<u8>& bytes, i32& idx) {
             inst.type = InstType::CMP;
             break;
         }
+
+        case JNEZ_ON_NOT_EQ_NOR_ZERO:
+        {
+            inst.operands = Operands::ShortLabel;
+            inst.type = InstType::JNEZ;
+
+            i64 off = 0;
+            i64 start = instructions.len();
+            safeCastSignedInt(i8(inst.data[0]), off);
+            i64 addr = 0;
+            if (off < 0) {
+                addr = start + 1 + off/2;
+            } else {
+                addr = start + 1 + off/2;
+            }
+            labelAddrs.append(addr);
+            break;
+        }
     }
 
     return inst;
+}
+
+} // namespace
+
+void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx) {
+    while (ctx.idx < bytes.len()) {
+        auto inst = decodeInstruction(bytes, ctx);
+        ctx.idx += inst.byteCount;
+        ctx.instructions.append(inst);
+    }
 }
 
 namespace {
 
 const char* instTypeToCptr(InstType t) {
     switch (t) {
-        case InstType::MOV: return "mov";
-        case InstType::ADD: return "add";
-        case InstType::SUB: return "sub";
-        case InstType::CMP: return "cmp";
+        case InstType::MOV:     return "mov";
+        case InstType::ADD:     return "add";
+        case InstType::SUB:     return "sub";
+        case InstType::CMP:     return "cmp";
+        case InstType::JNEZ:    return "jnez";
         case InstType::UNKNOWN: return "unknown";
         case InstType::SENTINEL: break;
     }
@@ -230,7 +267,22 @@ void appendImmediate(core::str_builder<>& sb, u16 i) {
     sb.append(ncptr);
 }
 
-void appendImmediateSigned(core::str_builder<>& sb, i16 i, bool explictSign = true) {
+void appendImmediateSignedWord(core::str_builder<>& sb, i16 i, bool explictSign = true) {
+    if (i < 0) {
+        if (explictSign) sb.append("- ");
+        else sb.append("-");
+        i = -i;
+    }
+    else {
+        if (explictSign) sb.append("+ ");
+    }
+
+    char ncptr[8] = {};
+    core::int_to_cptr(i32(i), ncptr);
+    sb.append(ncptr);
+}
+
+void appendImmediateSignedByte(core::str_builder<>& sb, i8 i, bool explictSign = true) {
     if (i < 0) {
         if (explictSign) sb.append("- ");
         else sb.append("-");
@@ -258,7 +310,7 @@ void appendRegDisp(core::str_builder<>& sb, u8 reg, u16 disp) {
     sb.append(regDispTable[reg]);
     if (disp != 0) {
         sb.append(" ");
-        appendImmediateSigned(sb, i16(disp), true);
+        appendImmediateSignedWord(sb, i16(disp), true);
     }
 }
 
@@ -273,9 +325,7 @@ void appendMemory(core::str_builder<>& sb, u8 w, u8 rm, u16 disp, bool isCalc) {
     }
 }
 
-}
-
-void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst) {
+void encodeInstruction(core::str_builder<>& sb, const Instruction& inst) {
     sb.append(instTypeToCptr(inst.type));
     sb.append(" ");
 
@@ -303,7 +353,7 @@ void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst) {
     auto appendMemoryAccumulator = [&]() {
         appendReg(sb, reg, w);
         sb.append(", ");
-        sb.append("["); appendImmediateSigned(sb, data, false); sb.append("]");
+        sb.append("["); appendImmediateSignedWord(sb, data, false); sb.append("]");
     };
     auto appendMemoryRegister = [&]() {
         appendMemory(sb, w, rm, disp, isCalc);
@@ -313,19 +363,19 @@ void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst) {
     auto appendMemoryImmediate = [&]() {
         sb.append(w ? "word " : "byte ");
         if (isDirect) {
-            sb.append("["); appendImmediateSigned(sb, disp, false); sb.append("]");
+            sb.append("["); appendImmediateSignedWord(sb, disp, false); sb.append("]");
         }
         else {
             appendMemory(sb, w, rm, disp, isCalc);
         }
         sb.append(", ");
-        appendImmediateSigned(sb, data, false);
+        appendImmediateSignedWord(sb, data, false);
     };
     auto appendRegisterMemory = [&]() {
         appendReg(sb, reg, w);
         sb.append(", ");
         if (isDirect) {
-            sb.append("["); appendImmediateSigned(sb, disp, false); sb.append("]");
+            sb.append("["); appendImmediateSignedWord(sb, disp, false); sb.append("]");
         }
         else {
             appendMemory(sb, w, rm, disp, isCalc);
@@ -334,17 +384,21 @@ void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst) {
     auto appendRegisterImmediate = [&]() {
         appendReg(sb, rm, w);
         sb.append(", ");
-        appendImmediateSigned(sb, data, false);
+        appendImmediateSignedWord(sb, data, false);
     };
     auto appendAccumulatorMemory = [&]() {
-        sb.append("["); appendImmediateSigned(sb, data, false); sb.append("]");
+        sb.append("["); appendImmediateSignedWord(sb, data, false); sb.append("]");
         sb.append(", ");
         appendReg(sb, rm, w);
     };
     auto appendAccumulatorImmediate = [&]() {
         appendReg(sb, rm, w);
         sb.append(", ");
-        appendImmediateSigned(sb, data, false);
+        appendImmediateSignedWord(sb, data, false);
+    };
+    auto appendShortLabel = [&]() {
+        // FIXME: This should be label_1, label_2, etc.
+        appendImmediateSignedByte(sb, i8(dataLow), false);
     };
 
     switch (operands) {
@@ -355,12 +409,35 @@ void encodeAsm8086(core::str_builder<>& sb, const Instruction& inst) {
         case Operands::Register_Immediate:    appendRegisterImmediate();     break;
         case Operands::Accumulator_Memory:    appendAccumulatorMemory();     break;
         case Operands::Accumulator_Immediate: appendAccumulatorImmediate();  break;
+        case Operands::ShortLabel:            appendShortLabel();            break;
         case Operands::Register_Register:                                    [[fallthrough]];
         case Operands::SegReg_Register16:                                    [[fallthrough]];
         case Operands::SetReg_Memory16:                                      [[fallthrough]];
         case Operands::Register16_SegReg:                                    [[fallthrough]];
         case Operands::Memory_SegReg:                                        [[fallthrough]];
         case Operands::None:                  sb.append("(encoding faild)"); break;
+    }
+}
+
+}
+
+void encodeAsm8086(core::str_builder<>& sb, const DecodingContext& ctx) {
+    for (ptr_size i = 0; i < ctx.instructions.len(); i++) {
+        auto inst = ctx.instructions[i];
+        ptr_size idxOfLabel = core::find(ctx.labelAddrs, [&](i64 el, ptr_size) -> bool {
+            return el == i;
+        });
+        if (idxOfLabel != -1) {
+            sb.append("label_");
+            char ncptr[8] = {};
+            i64 labelAddrFromStart = ctx.labelAddrs[idxOfLabel];
+            core::int_to_cptr(labelAddrFromStart, ncptr);
+            sb.append(ncptr);
+            sb.append(":\n");
+        }
+
+        encodeInstruction(sb, inst);
+        sb.append("\n");
     }
 }
 

@@ -21,6 +21,8 @@ const char* opcodeToCptr(Opcode o) {
 
         case CMP_REG_OR_MEM_WITH_REG:            return "CMP register/memory with register";
         case CMP_IMM_WITH_ACC:                   return "CMP immediate with accumulator";
+
+        case JNEZ_ON_NOT_EQ_NOR_ZERO:            return "JNEZ jump on not equal/not zero";
     }
 
     return "UNKNOWN OPCODE";
@@ -31,6 +33,7 @@ Opcode opcodeDecode(u8 opcodeByte) {
     switch (opcodeByte) {
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG: return MOV_REG_OR_MEMORY_TO_SEGMENT_REG;
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY: return MOV_SEGMENT_REG_TO_REG_OR_MEMORY;
+        case JNEZ_ON_NOT_EQ_NOR_ZERO:          return JNEZ_ON_NOT_EQ_NOR_ZERO;
     }
 
     // Check 7 bit opcodes:
@@ -82,36 +85,45 @@ constexpr FieldDisplacements::Displacement DEFAULT_MOD      = { 6, 0b11000000, 1
 constexpr FieldDisplacements::Displacement DEFAULT_REG      = { 3, 0b00111000, 1 };
 constexpr FieldDisplacements::Displacement DEFAULT_RM       = { 0, 0b00000111, 1 };
 
+constexpr i8 NO_FIXED_SIZE = -1;
+constexpr i8 FIXED_SIZE_BYTE = 0;
+constexpr i8 FIXED_SIZE_WORD = 1;
+
 void initDisplacementsLT() {
     displacementsLT[MOV_REG_OR_MEM_TO_OR_FROM_REG] = {
         { 2, 0b11111100, 0 }, DEFAULT_D, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_MOD, DEFAULT_REG, DEFAULT_RM,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        NO_FIXED_SIZE
     };
     displacementsLT[MOV_IMM_TO_REG_OR_MEM] = {
         { 1, 0b11111110, 0 }, DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_MOD, DEFAULT_REG, DEFAULT_RM,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
     displacementsLT[MOV_IMM_TO_REG] = {
         { 4, 0b11110000, 0 }, DEFAULT_NOT_SET, DEFAULT_NOT_SET, { 3, 0b00001000, 0 },
         DEFAULT_NOT_SET, { 0, 0b00000111, 0 }, DEFAULT_NOT_SET,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
     displacementsLT[MOV_MEM_TO_ACC] = {
         { 1, 0b11111110, 0 }, DEFAULT_D, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
     displacementsLT[MOV_ACC_TO_MEM] = {
         { 1, 0b11111110, 0 }, DEFAULT_D, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
     // displacementsLT[MOV_REG_OR_MEMORY_TO_SEGMENT_REG] = {};
     // displacementsLT[MOV_SEGMENT_REG_TO_REG_OR_MEMORY] = {};
@@ -121,18 +133,21 @@ void initDisplacementsLT() {
         DEFAULT_MOD, DEFAULT_REG, DEFAULT_RM,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        NO_FIXED_SIZE
     };
     displacementsLT[IMM_TO_FROM_REG_OR_MEM] = {
         { 2, 0b11111100, 0 }, DEFAULT_NOT_SET, DEFAULT_S, DEFAULT_W,
         DEFAULT_MOD, DEFAULT_REG, DEFAULT_RM,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
     displacementsLT[ADD_IMM_TO_ACC] = {
         { 1, 0b11111110, 0 }, DEFAULT_D, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
 
     displacementsLT[SUB_REG_OR_MEM_WITH_REG_TO_EDIT] = {
@@ -140,12 +155,14 @@ void initDisplacementsLT() {
         DEFAULT_MOD, DEFAULT_REG, DEFAULT_RM,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        NO_FIXED_SIZE
     };
     displacementsLT[SUB_IMM_FROM_ACC] = {
         { 1, 0b11111110, 0 }, DEFAULT_D, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
     };
 
     displacementsLT[CMP_REG_OR_MEM_WITH_REG] = {
@@ -153,12 +170,22 @@ void initDisplacementsLT() {
         DEFAULT_MOD, DEFAULT_REG, DEFAULT_RM,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        NO_FIXED_SIZE
     };
     displacementsLT[CMP_IMM_WITH_ACC] = {
         { 1, 0b11111110, 0 }, DEFAULT_D, DEFAULT_NOT_SET, DEFAULT_W,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_NOT_SET, DEFAULT_NOT_SET,
         DEFAULT_OPTIONAL, DEFAULT_OPTIONAL,
+        NO_FIXED_SIZE
+    };
+
+    displacementsLT[JNEZ_ON_NOT_EQ_NOR_ZERO] = {
+        { 0, 0b11111111, 0 }, DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        DEFAULT_NOT_SET, DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        DEFAULT_NOT_SET, DEFAULT_NOT_SET,
+        DEFAULT_OPTIONAL, DEFAULT_NOT_SET,
+        FIXED_SIZE_BYTE
     };
 }
 

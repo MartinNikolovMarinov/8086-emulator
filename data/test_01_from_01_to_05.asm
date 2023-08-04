@@ -1,7 +1,6 @@
 bits 16
 
 mov cx, bx
-
 mov cx, bx
 mov ch, ah
 mov dx, bx
@@ -13,7 +12,6 @@ mov bx, ax
 mov bx, si
 mov sp, di
 mov bp, ax
-
 mov si, bx
 mov dh, al
 mov cx, 12
@@ -28,7 +26,6 @@ mov al, [bx + si + 4999]
 mov [bx + di], cx
 mov [bp + si], cl
 mov [bp], ch
-
 mov ax, [bx + di - 37]
 mov [si - 300], cx
 mov dx, [bx - 32]
@@ -40,7 +37,6 @@ mov ax, [2555]
 mov ax, [16]
 mov [2554], ax
 mov [15], ax
-
 add bx, [bx + si]
 add bx, [bp]
 add si, 2
@@ -120,32 +116,32 @@ cmp al, ah
 cmp ax, 1000
 cmp al, -30
 cmp al, 9
-jnz label_0
-jnz label_1
-jnz label_2
-jnz label_3
+jne label_0
+jne label_1
+jne label_2
+jne label_3
 label_0:
 cmp word [4834], 29
-jnz label_0
+jne label_0
 label_1:
 cmp [bp + si + 4], bh
-jnz label_0
+jne label_0
 cmp [bp + si + 4], bh
 cmp ax, bx
 cmp al, ah
-jnz label_1
+jne label_1
 cmp word [4834], 29
-jnz label_2
+jne label_2
 cmp [bp + si + 4], bh
-jnz label_1
+jne label_1
 cmp [bp + si + 4], bh
 label_2:
-jnz label_2
+jne label_2
 cmp word [4834], 29
-jnz label_1
-jnz label_0
+jne label_1
+jne label_0
 label_3:
-jnz label_4
+jne label_4
 label_5:
 je label_5
 jl label_5
@@ -157,17 +153,14 @@ jo label_5
 js label_5
 jne label_5
 jnl label_5
-jg label_5
+jnle label_5
 jnb label_5
-ja label_5
+jnbe label_5
 jnp label_5
 jno label_5
 jns label_5
 loop label_5
-loopz label_5
-loopnz label_5
+loope label_5
+loopne label_5
 jcxz label_5
-
-
-
 label_4:

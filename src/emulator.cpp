@@ -506,8 +506,6 @@ void encodeInstruction(core::str_builder<>& sb,
             // TODO: I should makeup my mind on how long a jump is allowed. Is there a point to use 64 bit nubmers, if yes,
             //       then there should be a function to append them.
             appendImmediate(sb, u16(jmpLabels[jmpidx].labelIdx));
-            // sb.append(" ; ");
-            // appendImmediateSignedByte(sb, shotJmpOffset, false);
         }
     };
 
@@ -543,7 +541,10 @@ void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
                 asmOut.append("label_");
                 appendImmediate(asmOut, u64(ctx.jmpLabels[jmpidx].labelIdx));
                 asmOut.append(":");
-                asmOut.append("\n");
+                if (i != ctx.instructions.len()) {
+                    // Don't want any empty lines at the end of the file. Ever.
+                    asmOut.append("\n");
+                }
             }
         }
 

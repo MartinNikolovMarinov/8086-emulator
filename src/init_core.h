@@ -26,14 +26,14 @@ struct std_allocator_static {
 #include <core.h>
 #include <std/core.h>
 
-void initCore(i32 argc, const char** argv);
-
 struct command_line_args {
-    char* fileName;
-    i32 fileNameLen;
+    char* fileName = nullptr;
+    i32 fileNameLen = 0;
+    bool execFlag = false;
+    bool verboseFlag = false;
 };
 
-extern command_line_args g_cmdLineArgs;
+command_line_args initCore(i32 argc, const char** argv);
 
 #include <fmt/core.h>
 #include <fmt/color.h>

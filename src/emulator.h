@@ -1,8 +1,14 @@
 #include "init_core.h"
 #include "opcode.h"
-#include "mod.h"
 
 namespace asm8086 {
+
+enum Mod : u8 {
+    MOD_MEMORY_NO_DISPLACEMENT               = 0b00,
+    MOD_MEMORY_8_BIT_DISPLACEMENT            = 0b01,
+    MOD_MEMORY_16_BIT_DISPLACEMENT           = 0b10,
+    MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT = 0b11,
+};
 
 enum struct InstType : u8 {
     UNKNOWN,
@@ -39,14 +45,14 @@ enum struct Operands : u8 {
 struct Instruction {
     // byte 1
     Opcode opcode; // is variable length
-    u8 d : 1;
-    u8 s : 1;
-    u8 w : 1;
+    u8 d;
+    u8 s;
+    u8 w;
 
     // byte 2
-    Mod mod : 2;
-    u8 reg : 3;
-    u8 rm : 3;
+    Mod mod;
+    u8 reg;
+    u8 rm;
 
     // byte 3
     u8 disp[2];

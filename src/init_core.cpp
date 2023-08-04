@@ -1,8 +1,5 @@
 #include "init_core.h"
 
-#include <fmt/format.h>
-#include <fmt/color.h>
-
 command_line_args g_cmdLineArgs;
 
 void* std_allocator_static::alloc(ptr_size size) noexcept {

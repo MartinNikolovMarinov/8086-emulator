@@ -10,15 +10,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json
 # Create executable:
 add_executable(${PROJECT_NAME}
     main.cpp
-
     src/init_core.cpp
     src/init_core.h
-    src/inst_8086.cpp
-    src/inst_8086.h
-    src/mod.h
+
+    src/emulator_utils.cpp
+    src/emulator_utils.h
+    src/emulator.cpp
+    src/emulator.h
     src/opcode.cpp
     src/opcode.h
-    src/utils.h
 )
 
 # BEGIN Compile Options

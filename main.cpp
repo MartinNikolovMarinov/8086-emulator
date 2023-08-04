@@ -1,6 +1,6 @@
-#include "src/inst_8086.h"
+#include "src/init_core.h"
+#include "src/emulator.h"
 
-#include <fmt/format.h>
 #include <fcntl.h>
 
 using namespace asm8086;

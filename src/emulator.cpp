@@ -1,7 +1,5 @@
-#include "inst_8086.h"
-#include "utils.h"
-
-#include <fmt/core.h>
+#include "emulator.h"
+#include "emulator_utils.h"
 
 namespace asm8086 {
 
@@ -325,7 +323,7 @@ void appendMemory(core::str_builder<>& sb, u8 w, u8 rm, u16 disp, bool isCalc) {
     }
 }
 
-void encodeInstruction(core::str_builder<>& sb, const Instruction& inst) {
+void encodeInstruction(core::str_builder<>& sb, const Instruction& inst, i64 labelAddr) {
     sb.append(instTypeToCptr(inst.type));
     sb.append(" ");
 
@@ -424,19 +422,9 @@ void encodeInstruction(core::str_builder<>& sb, const Instruction& inst) {
 void encodeAsm8086(core::str_builder<>& sb, const DecodingContext& ctx) {
     for (ptr_size i = 0; i < ctx.instructions.len(); i++) {
         auto inst = ctx.instructions[i];
-        ptr_size idxOfLabel = core::find(ctx.labelAddrs, [&](i64 el, ptr_size) -> bool {
-            return el == i;
-        });
-        if (idxOfLabel != -1) {
-            sb.append("label_");
-            char ncptr[8] = {};
-            i64 labelAddrFromStart = ctx.labelAddrs[idxOfLabel];
-            core::int_to_cptr(labelAddrFromStart, ncptr);
-            sb.append(ncptr);
-            sb.append(":\n");
-        }
-
-        encodeInstruction(sb, inst);
+        ptr_size idxOfLabel = core::find(ctx.labelAddrs, [&](i64 el, ptr_size) -> bool { return el == i; });
+        i64 labelAddrFromStart = idxOfLabel != -1 ? ctx.labelAddrs[idxOfLabel] : -1;
+        encodeInstruction(sb, inst, labelAddrFromStart);
         sb.append("\n");
     }
 }

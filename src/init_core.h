@@ -33,3 +33,6 @@ struct command_line_args {
 };
 
 extern command_line_args g_cmdLineArgs;
+
+#include <fmt/core.h>
+#include <fmt/color.h>

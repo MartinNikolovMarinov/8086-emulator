@@ -20,6 +20,7 @@ struct std_allocator_static {
     static const char* allocator_name() noexcept;
 };
 
+#undef CORE_DEFAULT_ALLOCATOR
 #define CORE_DEFAULT_ALLOCATOR() std_allocator_static
 
 #include <core.h>

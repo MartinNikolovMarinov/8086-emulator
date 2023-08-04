@@ -15,6 +15,10 @@
                 // "-f", "${workspaceFolder}/build/04_challange_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/05_add_sub_cmp_jnz.asm.o"
                 // "-f", "${workspaceFolder}/build/test_01_from_01_to_05.asm.o"
+
+                "-exec", "true",
+                "-verbose", "true",
+                "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

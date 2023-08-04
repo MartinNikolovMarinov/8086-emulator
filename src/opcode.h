@@ -90,27 +90,46 @@ namespace asm8086 {
 // Enumeration for all instruction opcodes. From Table 4-12. 8086/8088 Instruction Set.
 enum Opcode : u8 {
     // 4 bit opcodes
-    MOV_IMM_TO_REG                      = 0b1011, // mov 3
+    MOV_IMM_TO_REG                       = 0b1011,
 
     // 6 bit opcodes
-    MOV_REG_OR_MEM_TO_OR_FROM_REG       = 0b100010, // mov 1
-    ADD_REG_OR_MEM_WITH_REG_TO_EDIT     = 0b000000, // add 1
-    IMM_TO_FROM_REG_OR_MEM              = 0b100000, // add/sub/cmp 2 (this is a very special boy...)
-    SUB_REG_OR_MEM_WITH_REG_TO_EDIT     = 0b001010, // sub 1
-    CMP_REG_OR_MEM_WITH_REG             = 0b001110, // cmp 1
+    MOV_REG_OR_MEM_TO_OR_FROM_REG        = 0b100010,
+    ADD_REG_OR_MEM_WITH_REG_TO_EDIT      = 0b000000,
+    IMM_TO_FROM_REG_OR_MEM               = 0b100000,
+    SUB_REG_OR_MEM_WITH_REG_TO_EDIT      = 0b001010,
+    CMP_REG_OR_MEM_WITH_REG              = 0b001110,
 
     // 7 bit opcodes
-    MOV_IMM_TO_REG_OR_MEM               = 0b1100011, // mov 2
-    MOV_MEM_TO_ACC                      = 0b1010000, // mov 4
-    MOV_ACC_TO_MEM                      = 0b1010001, // mov 5
-    ADD_IMM_TO_ACC                      = 0b0000010, // add 3
-    SUB_IMM_FROM_ACC                    = 0b0010110, // sub 2
-    CMP_IMM_WITH_ACC                    = 0b0011110, // cmp 3
+    MOV_IMM_TO_REG_OR_MEM                = 0b1100011,
+    MOV_MEM_TO_ACC                       = 0b1010000,
+    MOV_ACC_TO_MEM                       = 0b1010001,
+    ADD_IMM_TO_ACC                       = 0b0000010,
+    SUB_IMM_FROM_ACC                     = 0b0010110,
+    CMP_IMM_WITH_ACC                     = 0b0011110,
 
     // 8 bit opcodes
-    MOV_REG_OR_MEMORY_TO_SEGMENT_REG    = 0b10001110, // 8 bits
-    MOV_SEGMENT_REG_TO_REG_OR_MEMORY    = 0b10001100, // 8 bits
-    JNEZ_ON_NOT_EQ_NOR_ZERO             = 0b01110101, // 8 bits
+    MOV_REG_OR_MEMORY_TO_SEGMENT_REG     = 0b10001110,
+    MOV_SEGMENT_REG_TO_REG_OR_MEMORY     = 0b10001100,
+    JE_JZ_ON_EQ_ZERO                     = 0b01110100,
+    JL_JNGE_ON_LESS_NOT_GE_OR_EQ         = 0b01111100,
+    JLE_JNG_ON_LESS_OR_EQ_NOT_GE         = 0b01111110,
+    JB_JNAE_ON_BELOW_NOT_ABOVE_OR_EQ     = 0b01110010,
+    JBE_JNA_ON_BELOW_OR_EQ_NOT_ABOVE     = 0b01110110,
+    JP_JPE_ON_PARITY_EVEN                = 0b01111010,
+    JO_ON_OVERFLOW                       = 0b01110000,
+    JS_ON_SIGN                           = 0b01111000,
+    JNE_JNZ_ON_NOT_EQ_NOR_ZERO           = 0b01110101,
+    JNL_JGE_ON_NOT_LESS_GE_OR_EQ         = 0b01111101,
+    JNLE_JG_ON_NOT_LESS_OR_EQ_GE         = 0b01111111,
+    JNB_JAE_ON_NOT_BELOW_ABOVE_OR_EQ     = 0b01110011,
+    JNBE_JA_ON_NOT_BELOW_OR_EQ_ABOVE     = 0b01110111,
+    JNP_JPO_ON_NOT_PAR_PAR_ODD           = 0b01111011,
+    JNO_ON_NOT_OVERFLOW                  = 0b01110001,
+    JNS_ON_NOT_SIGN                      = 0b01111001,
+    LOOP_CX_TIMES                        = 0b11100010,
+    LOOPZ_LOOPE_WHILE_ZERO_EQ            = 0b11100001,
+    LOOPNZ_LOOPNE_WHILE_NOT_ZERO_EQ      = 0b11100000,
+    JCXZ_ON_CX_ZERO                      = 0b11100011,
 };
 
 const char* opcodeToCptr(Opcode o);

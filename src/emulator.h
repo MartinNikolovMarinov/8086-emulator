@@ -18,8 +18,26 @@ enum struct InstType : u8 {
     ADD,
     SUB,
     CMP,
-    JNZ,
-    JNE,
+    JE,  JZ,   // These are synonyms
+    JL,  JNGE, // These are synonyms
+    JLE, JNG,  // These are synonyms
+    JB,  JNAE, // These are synonyms
+    JBE, JNA,  // These are synonyms
+    JP,  JPE,  // These are synonyms
+    JO,
+    JS,
+    JNE,  JNZ, // These are synonyms
+    JNL,  JGE, // These are synonyms
+    JNLE, JG,  // These are synonyms
+    JNB,  JAE, // These are synonyms
+    JNBE, JA,  // These are synonyms
+    JNP,  JPO, // These are synonyms
+    JNO,
+    JNS,
+    LOOP,
+    LOOPE, LOOPZ,   // These are synonyms
+    LOOPNE, LOOPNZ, // These are synonyms
+    JCXZ,
 
     SENTINEL
 };

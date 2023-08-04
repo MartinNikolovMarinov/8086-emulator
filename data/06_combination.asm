@@ -146,7 +146,27 @@ jnz label_1
 jnz label_0
 label_3:
 jnz label_4
-
+label_5:
+je label_5
+jl label_5
+jle label_5
+jb label_5
+jbe label_5
+jp label_5
+jo label_5
+js label_5
+jne label_5
+jnl label_5
+jg label_5
+jnb label_5
+ja label_5
+jnp label_5
+jno label_5
+jns label_5
+loop label_5
+loopz label_5
+loopnz label_5
+jcxz label_5
 
 
 

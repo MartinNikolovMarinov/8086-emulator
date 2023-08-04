@@ -91,6 +91,15 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         inst.byteCount += i8(ibc + 1);
     };
 
+    auto storeShortJmpLabel = [](core::arr<JmpLabel>& jmpLabels, const Instruction &inst, ptr_size idx) {
+        ptr_size diff = 0;
+        i8 shortJmpDiff = i8(inst.data[0]);
+        safeCastSignedInt(shortJmpDiff, diff);
+        ptr_size byteOff = ptr_size(idx) + ptr_size(inst.byteCount) + ptr_size(diff);
+        JmpLabel jmpLabel = { byteOff, jmpLabels.len() };
+        core::appendUnique(jmpLabels, jmpLabel, [&](auto& x) -> bool { return x.byteOffset == byteOff; });
+    };
+
     auto& jmpLabels = ctx.jmpLabels;
 
     ptr_size idx = ctx.idx;
@@ -103,46 +112,32 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
 
     switch (inst.opcode) {
         case MOV_IMM_TO_REG:
-        {
             inst.operands = Operands::Register_Immediate;
             inst.rm = inst.reg; // special case
             inst.type = InstType::MOV;
             break;
-        }
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
-        {
             inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
             inst.type = InstType::MOV;
             break;
-        }
         case MOV_MEM_TO_ACC:
-        {
             inst.operands = Operands::Memory_Accumulator;
             inst.type = InstType::MOV;
             break;
-        }
         case MOV_ACC_TO_MEM:
-        {
             inst.operands = Operands::Accumulator_Memory;
             inst.type = InstType::MOV;
             break;
-        }
         case MOV_IMM_TO_REG_OR_MEM:
-        {
             inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_Immediate : Operands::Register_Immediate;
             inst.type = InstType::MOV;
             break;
-        }
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
-        {
             Assert(false, "Not implemented");
             break;
-        }
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:
-        {
             Assert(false, "Not implemented");
             break;
-        }
 
         case IMM_TO_FROM_REG_OR_MEM:
         {
@@ -168,56 +163,132 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         }
 
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:
-        {
             inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
             inst.type = InstType::ADD;
             break;
-        }
         case ADD_IMM_TO_ACC:
-        {
             inst.operands = Operands::Accumulator_Immediate;
             inst.type = InstType::ADD;
             break;
-        }
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:
-        {
             inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
             inst.type = InstType::SUB;
             break;
-        }
         case SUB_IMM_FROM_ACC:
-        {
             inst.operands = Operands::Accumulator_Immediate;
             inst.type = InstType::SUB;
             break;
-        }
 
         case CMP_REG_OR_MEM_WITH_REG:
-        {
             inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
             inst.type = InstType::CMP;
             break;
-        }
         case CMP_IMM_WITH_ACC:
-        {
             inst.operands = Operands::Accumulator_Immediate;
             inst.type = InstType::CMP;
             break;
-        }
 
-        case JNEZ_ON_NOT_EQ_NOR_ZERO:
-        {
+        case JE_JZ_ON_EQ_ZERO:
+            inst.type = InstType::JE;
             inst.operands = Operands::ShortLabel;
-            inst.type = InstType::JNZ;
-            ptr_size diff = 0;
-            i8 shortJmpDiff = i8(inst.data[0]);
-            safeCastSignedInt(shortJmpDiff, diff);
-            ptr_size byteOff = ptr_size(idx) + ptr_size(inst.byteCount) + ptr_size(diff);
-            JmpLabel jmpLabel = { byteOff, jmpLabels.len() };
-            core::appendUnique(jmpLabels, jmpLabel, [&](auto& x) -> bool { return x.byteOffset == byteOff; });
+            storeShortJmpLabel(jmpLabels, inst, idx);
             break;
-        }
+        case JL_JNGE_ON_LESS_NOT_GE_OR_EQ:
+            inst.type = InstType::JL;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JLE_JNG_ON_LESS_OR_EQ_NOT_GE:
+            inst.type = InstType::JLE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JB_JNAE_ON_BELOW_NOT_ABOVE_OR_EQ:
+            inst.type = InstType::JB;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JBE_JNA_ON_BELOW_OR_EQ_NOT_ABOVE:
+            inst.type = InstType::JBE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JP_JPE_ON_PARITY_EVEN:
+            inst.type = InstType::JP;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JO_ON_OVERFLOW:
+            inst.type = InstType::JO;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JS_ON_SIGN:
+            inst.type = InstType::JS;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNE_JNZ_ON_NOT_EQ_NOR_ZERO:
+            inst.type = InstType::JNE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNL_JGE_ON_NOT_LESS_GE_OR_EQ:
+            inst.type = InstType::JNL;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNLE_JG_ON_NOT_LESS_OR_EQ_GE:
+            inst.type = InstType::JNLE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNB_JAE_ON_NOT_BELOW_ABOVE_OR_EQ:
+            inst.type = InstType::JNB;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNBE_JA_ON_NOT_BELOW_OR_EQ_ABOVE:
+            inst.type = InstType::JNBE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNP_JPO_ON_NOT_PAR_PAR_ODD:
+            inst.type = InstType::JNP;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNO_ON_NOT_OVERFLOW:
+            inst.type = InstType::JNO;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JNS_ON_NOT_SIGN:
+            inst.type = InstType::JNS;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case LOOP_CX_TIMES:
+            inst.type = InstType::LOOP;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case LOOPZ_LOOPE_WHILE_ZERO_EQ:
+            inst.type = InstType::LOOPE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case LOOPNZ_LOOPNE_WHILE_NOT_ZERO_EQ:
+            inst.type = InstType::LOOPNE;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
+        case JCXZ_ON_CX_ZERO:
+            inst.type = InstType::JCXZ;
+            inst.operands = Operands::ShortLabel;
+            storeShortJmpLabel(jmpLabels, inst, idx);
+            break;
     }
 
     return inst;
@@ -237,13 +308,45 @@ namespace {
 
 const char* instTypeToCptr(InstType t) {
     switch (t) {
-        case InstType::MOV:     return "mov";
-        case InstType::ADD:     return "add";
-        case InstType::SUB:     return "sub";
-        case InstType::CMP:     return "cmp";
-        case InstType::JNZ:     return "jnz";
-        case InstType::JNE:     return "jne";
-        case InstType::UNKNOWN: return "unknown";
+        case InstType::MOV:      return "mov";
+        case InstType::ADD:      return "add";
+        case InstType::SUB:      return "sub";
+        case InstType::CMP:      return "cmp";
+        case InstType::JE:       return "je";
+        case InstType::JZ:       return "jz";
+        case InstType::JL:       return "jl";
+        case InstType::JNGE:     return "jnge";
+        case InstType::JLE:      return "jle";
+        case InstType::JNG:      return "jng";
+        case InstType::JB:       return "jb";
+        case InstType::JNAE:     return "jnae";
+        case InstType::JBE:      return "jbe";
+        case InstType::JNA:      return "jna";
+        case InstType::JP:       return "jp";
+        case InstType::JPE:      return "jpe";
+        case InstType::JO:       return "jo";
+        case InstType::JS:       return "js";
+        case InstType::JNE:      return "jne";
+        case InstType::JNZ:      return "jnz";
+        case InstType::JNL:      return "jnl";
+        case InstType::JGE:      return "jge";
+        case InstType::JNLE:     return "jnle";
+        case InstType::JG:       return "jg";
+        case InstType::JNB:      return "jnb";
+        case InstType::JAE:      return "jae";
+        case InstType::JNBE:     return "jnbe";
+        case InstType::JA:       return "ja";
+        case InstType::JNP:      return "jnp";
+        case InstType::JPO:      return "jpo";
+        case InstType::JNO:      return "jno";
+        case InstType::JNS:      return "jns";
+        case InstType::LOOP:     return "loop";
+        case InstType::LOOPE:    return "loope";
+        case InstType::LOOPZ:    return "loopz";
+        case InstType::LOOPNE:   return "loopne";
+        case InstType::LOOPNZ:   return "loopnz";
+        case InstType::JCXZ:     return "jcxz";
+        case InstType::UNKNOWN:  return "unknown";
         case InstType::SENTINEL: break;
     }
     return "invalid";

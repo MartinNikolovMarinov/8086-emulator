@@ -1,6 +1,8 @@
 #include "init_core.h"
 #include "opcode.h"
 
+// FIXME: Error handling should not allow for assertion crashes, or panics. Leaving this for last of course.
+
 namespace asm8086 {
 
 enum Mod : u8 {
@@ -16,7 +18,8 @@ enum struct InstType : u8 {
     ADD,
     SUB,
     CMP,
-    JNEZ,
+    JNZ,
+    JNE,
 
     SENTINEL
 };
@@ -66,14 +69,19 @@ struct Instruction {
     Operands operands;
 };
 
+struct JmpLabel {
+    ptr_size byteOffset;
+    ptr_size labelIdx;
+};
+
 struct DecodingContext {
     ptr_size idx = 0;
     core::arr<Instruction> instructions;
-    core::arr<i64> labelAddrs;
+    core::arr<JmpLabel> jmpLabels;
 };
 
 void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx);
-void encodeAsm8086(core::str_builder<>& sb, const DecodingContext& ctx);
+void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx);
 
 } // namespace asm8086
 

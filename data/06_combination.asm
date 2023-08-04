@@ -120,3 +120,34 @@ cmp al, ah
 cmp ax, 1000
 cmp al, -30
 cmp al, 9
+jnz label_0
+jnz label_1
+jnz label_2
+jnz label_3
+label_0:
+cmp word [4834], 29
+jnz label_0
+label_1:
+cmp [bp + si + 4], bh
+jnz label_0
+cmp [bp + si + 4], bh
+cmp ax, bx
+cmp al, ah
+jnz label_1
+cmp word [4834], 29
+jnz label_2
+cmp [bp + si + 4], bh
+jnz label_1
+cmp [bp + si + 4], bh
+label_2:
+jnz label_2
+cmp word [4834], 29
+jnz label_1
+jnz label_0
+label_3:
+jnz label_4
+
+
+
+
+label_4:

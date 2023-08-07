@@ -27,7 +27,7 @@ bool is16bitDisplacement(Mod mod) {
 }
 
 Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
-    auto decodeFromDisplacements = [&](auto& bytes, i32 idx, const FieldDisplacements& fd, Instruction& inst) {
+    auto decodeFromDisplacements = [&](auto& bytes, addr_off idx, const FieldDisplacements& fd, Instruction& inst) {
         i8 ibc = 0;
         if (fd.d.byteIdx >= 0) {
             ibc = core::max(ibc, fd.d.byteIdx);
@@ -91,18 +91,18 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         inst.byteCount += i8(ibc + 1);
     };
 
-    auto storeShortJmpLabel = [](core::arr<JmpLabel>& jmpLabels, const Instruction &inst, ptr_size idx) {
-        ptr_size diff = 0;
+    auto storeShortJmpLabel = [](core::arr<JmpLabel>& jmpLabels, const Instruction &inst, addr_off idx) {
+        addr_off diff = 0;
         i8 shortJmpDiff = i8(inst.data[0]);
         safeCastSignedInt(shortJmpDiff, diff);
-        ptr_size byteOff = ptr_size(idx) + ptr_size(inst.byteCount) + ptr_size(diff);
-        JmpLabel jmpLabel = { byteOff, jmpLabels.len() };
+        addr_off byteOff = addr_off(idx) + addr_off(inst.byteCount) + addr_off(diff);
+        JmpLabel jmpLabel = { byteOff, addr_off(jmpLabels.len()) };
         core::appendUnique(jmpLabels, jmpLabel, [&](auto& x) -> bool { return x.byteOffset == byteOff; });
     };
 
     auto& jmpLabels = ctx.jmpLabels;
 
-    ptr_size idx = ctx.idx;
+    addr_off idx = addr_off(ctx.idx);
     Opcode opcode = opcodeDecode(bytes[idx]);
     auto fd = getFieldDisplacements(opcode);
 
@@ -423,7 +423,7 @@ void appendMemory(core::str_builder<>& sb, u8 w, u8 rm, u16 disp, bool isCalc) {
 void encodeInstruction(core::str_builder<>& sb,
                        const Instruction& inst,
                        const core::arr<JmpLabel>& jmpLabels,
-                       ptr_size byteIdx) {
+                       addr_size byteIdx) {
     sb.append(instTypeToCptr(inst.type));
     sb.append(" ");
 
@@ -496,8 +496,8 @@ void encodeInstruction(core::str_builder<>& sb,
     };
     auto appendShortLabel = [&]() {
         i8 shotJmpOffset = i8(dataLow);
-        ptr_size byteOff = byteIdx + shotJmpOffset;
-        i64 jmpidx = core::find(jmpLabels, [&](auto& el, ptr_size) -> bool { return el.byteOffset == byteOff; });
+        addr_off byteOff = addr_off(byteIdx) + shotJmpOffset;
+        i64 jmpidx = core::find(jmpLabels, [&](auto& el, addr_off) -> bool { return el.byteOffset == byteOff; });
         if (jmpidx == -1) {
             sb.append("(failed to decode label)");
         }
@@ -530,12 +530,12 @@ void encodeInstruction(core::str_builder<>& sb,
 }
 
 void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
-    ptr_size byteIdx = 0;
-    for (ptr_size i = 0; i <= ctx.instructions.len(); i++) {
+    addr_size byteIdx = 0;
+    for (addr_size i = 0; i <= ctx.instructions.len(); i++) {
         // Insert the label before the instruction.
         {
-            i64 jmpidx = core::find(ctx.jmpLabels, [&](auto& el, ptr_size) -> bool {
-                return el.byteOffset == byteIdx;
+            i64 jmpidx = core::find(ctx.jmpLabels, [&](auto& el, addr_off) -> bool {
+                return el.byteOffset == addr_off(byteIdx);
             });
             if (jmpidx != -1) {
                 asmOut.append("label_");

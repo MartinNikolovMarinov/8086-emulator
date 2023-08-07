@@ -88,12 +88,12 @@ struct Instruction {
 };
 
 struct JmpLabel {
-    ptr_size byteOffset;
-    ptr_size labelIdx;
+    addr_off byteOffset;
+    addr_off labelIdx;
 };
 
 struct DecodingContext {
-    ptr_size idx = 0;
+    addr_size idx = 0;
     core::arr<Instruction> instructions;
     core::arr<JmpLabel> jmpLabels;
 };

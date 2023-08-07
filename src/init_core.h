@@ -11,11 +11,11 @@ using namespace coretypes;
 
 static core::std_stats_allocator g_stdAlloc;
 struct std_allocator_static {
-    static void* alloc(ptr_size size) noexcept;
+    static void* alloc(addr_size size) noexcept;
 
     static void free(void* ptr) noexcept;
 
-    static ptr_size used_mem() noexcept;
+    static addr_size used_mem() noexcept;
 
     static const char* allocator_name() noexcept;
 };

@@ -6,8 +6,8 @@
 using namespace asm8086;
 
 static command_line_args g_cmdLineArgs;
-static constexpr ptr_size g_memorySize = core::MEGABYTE;
-static constexpr ptr_size g_segmentSize = g_memorySize / (64 * core::KILOBYTE) + 1;
+static constexpr addr_size g_memorySize = core::MEGABYTE;
+static constexpr addr_size g_segmentSize = g_memorySize / (64 * core::KILOBYTE) + 1;
 [[maybe_unused]] static u8 g_memory[g_memorySize];
 
 i32 main(i32 argc, char const** argv) {

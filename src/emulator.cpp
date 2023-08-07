@@ -6,24 +6,24 @@ namespace asm8086 {
 namespace {
 
 bool isDirectAddrMode(Mod mod, u8 rm) {
-    return mod == MOD_MEMORY_NO_DISPLACEMENT && rm == 0b110;
+    return mod == Mod::MEMORY_NO_DISPLACEMENT && rm == 0b110;
 }
 
 bool isDisplacementMode(Mod mod) {
-    return mod == MOD_MEMORY_8_BIT_DISPLACEMENT ||
-           mod == MOD_MEMORY_16_BIT_DISPLACEMENT;
+    return mod == Mod::MEMORY_8_BIT_DISPLACEMENT ||
+           mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
 }
 
 bool isEffectiveAddrCalc(Mod mod) {
-    return mod != MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT;
+    return mod != Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
 }
 
 bool is8bitDisplacement(Mod mod) {
-    return mod == MOD_MEMORY_8_BIT_DISPLACEMENT;
+    return mod == Mod::MEMORY_8_BIT_DISPLACEMENT;
 }
 
 bool is16bitDisplacement(Mod mod) {
-    return mod == MOD_MEMORY_16_BIT_DISPLACEMENT;
+    return mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
 }
 
 Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
@@ -55,12 +55,12 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         }
 
         // Displacement byte(s) decoding.
-        if (fd.disp1.byteIdx > 0 && inst.mod == MOD_MEMORY_8_BIT_DISPLACEMENT) {
+        if (fd.disp1.byteIdx > 0 && inst.mod == Mod::MEMORY_8_BIT_DISPLACEMENT) {
             inst.disp[0] = bytes[idx + ibc + 1];
             ibc++;
         }
         else if (fd.disp1.byteIdx > 0 &&
-                 (inst.mod == MOD_MEMORY_16_BIT_DISPLACEMENT ||
+                 (inst.mod == Mod::MEMORY_16_BIT_DISPLACEMENT ||
                   isDirectAddrMode(inst.mod, inst.rm))
         ) {
             inst.disp[0] = bytes[idx + ibc + 1];
@@ -304,8 +304,6 @@ void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx) {
     }
 }
 
-namespace {
-
 const char* instTypeToCptr(InstType t) {
     switch (t) {
         case InstType::MOV:      return "mov";
@@ -351,6 +349,8 @@ const char* instTypeToCptr(InstType t) {
     }
     return "invalid";
 }
+
+namespace {
 
 void appendImmediate(core::str_builder<>& sb, u16 i) {
     char ncptr[8] = {};
@@ -445,7 +445,7 @@ void encodeInstruction(core::str_builder<>& sb,
         disp = isCalc ? u16FromLowAndHi((w == 1), dispLow, dispHigh) : 0;
     }
     else {
-        disp = isCalc ? u16FromLowAndHi((mod == MOD_MEMORY_16_BIT_DISPLACEMENT), dispLow, dispHigh) : 0;
+        disp = isCalc ? u16FromLowAndHi((mod == Mod::MEMORY_16_BIT_DISPLACEMENT), dispLow, dispHigh) : 0;
     }
 
     auto appendMemoryAccumulator = [&]() {
@@ -556,6 +556,86 @@ void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
         byteIdx += inst.byteCount; // Intentionally increase the size before encoding.
         encodeInstruction(asmOut, inst, ctx.jmpLabels, byteIdx);
         asmOut.append("\n");
+    }
+}
+
+EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOptionFlags options) {
+    EmulationContext ctx;
+    ctx.instructions = core::move(instructions);
+    ctx.options = options;
+    core::memset(ctx.memory, 0, EmulationContext::MEMORY_SIZE);
+    for (addr_size i = 0; i < addr_size(RegisterType::SENTINEL); i++) {
+        auto& reg = ctx.registers[i];
+        reg.type = RegisterType(i);
+        reg.value = 0;
+    }
+    return ctx;
+}
+
+const char* regTypeToCptr(const RegisterType& rtype) {
+    switch (rtype) {
+        case RegisterType::AX:    return "ax";
+        case RegisterType::CX:    return "cx";
+        case RegisterType::DX:    return "dx";
+        case RegisterType::BX:    return "bx";
+        case RegisterType::SP:    return "sp";
+        case RegisterType::BP:    return "bp";
+        case RegisterType::SI:    return "si";
+        case RegisterType::DI:    return "di";
+        case RegisterType::CS:    return "cs";
+        case RegisterType::DS:    return "ds";
+        case RegisterType::SS:    return "ss";
+        case RegisterType::ES:    return "es";
+        case RegisterType::IP:    return "ip";
+        case RegisterType::FLAGS: return "flags";
+        default:                  return "invalid register";
+    }
+}
+
+namespace {
+
+void executeMov(EmulationContext& ctx, const Instruction& inst) {
+    if (inst.operands == Operands::Register_Immediate) {
+        Register& destReg = ctx.registers[i32(inst.reg)];
+        u16 immValue = inst.w ? ((u16(inst.data[1]) << 8) | u16(inst.data[0])) : (inst.data[0]);
+
+        u16 prev = destReg.value;
+        destReg.value = immValue;
+
+        if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
+            fmt::print("{} {}, {} ; {}:{:#0x}->{:#0x}\n",
+                        instTypeToCptr(inst.type), regTypeToCptr(destReg.type), immValue,
+                        regTypeToCptr(destReg.type), prev, destReg.value);
+        }
+    }
+    else if (inst.operands == Operands::Memory_Register) {
+        Register& destReg = ctx.registers[i32(inst.rm)];
+        Register& srcReg = ctx.registers[i32(inst.reg)];
+
+        u16 prev = srcReg.value;
+        destReg.value = srcReg.value;
+
+        if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
+            fmt::print("{} {}, {} ; {}:{:#0x}->{:#0x}\n",
+                        instTypeToCptr(inst.type), regTypeToCptr(destReg.type), srcReg.value,
+                        regTypeToCptr(srcReg.type), prev, destReg.value);
+        }
+    }
+}
+
+} // namespace
+
+void emulate(EmulationContext& ctx) {
+    for (addr_size i = 0; i < ctx.instructions.len(); i++) {
+        auto inst = ctx.instructions[i];
+        if (isDisplacementMode(inst.mod)) Panic(false, "Can't handle displacement mode yet.");
+
+        switch (inst.type) {
+            case InstType::MOV: executeMov(ctx, inst); break;
+            default:
+                Panic(false, "Instruction type not supported yet.");
+                break;
+        }
     }
 }
 

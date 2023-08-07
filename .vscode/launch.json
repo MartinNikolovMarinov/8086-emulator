@@ -18,7 +18,9 @@
 
                 "-exec", "true",
                 "-verbose", "true",
-                "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o"
+                // "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o"
+                // "-f", "${workspaceFolder}/build/07_memory_to_register_sim.asm.o",
+                "-f", "${workspaceFolder}/build/08_half_register_movs.asm.o"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

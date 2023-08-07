@@ -5,11 +5,11 @@
 
 namespace asm8086 {
 
-enum Mod : u8 {
-    MOD_MEMORY_NO_DISPLACEMENT               = 0b00,
-    MOD_MEMORY_8_BIT_DISPLACEMENT            = 0b01,
-    MOD_MEMORY_16_BIT_DISPLACEMENT           = 0b10,
-    MOD_REGISTER_TO_REGISTER_NO_DISPLACEMENT = 0b11,
+enum struct Mod : u8 {
+    MEMORY_NO_DISPLACEMENT               = 0b00,
+    MEMORY_8_BIT_DISPLACEMENT            = 0b01,
+    MEMORY_16_BIT_DISPLACEMENT           = 0b10,
+    REGISTER_TO_REGISTER_NO_DISPLACEMENT = 0b11,
 };
 
 enum struct InstType : u8 {
@@ -41,6 +41,8 @@ enum struct InstType : u8 {
 
     SENTINEL
 };
+
+const char* instTypeToCptr(InstType t);
 
 enum struct Operands : u8 {
     None,
@@ -100,6 +102,60 @@ struct DecodingContext {
 
 void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx);
 void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx);
+
+enum struct RegisterType : u8 {
+    AX, CX, DX, BX, SP, BP, SI, DI,
+    CS, DS, SS, ES,
+    IP,
+    FLAGS,
+    SENTINEL
+};
+
+const char* regTypeToCptr(const RegisterType& r);
+
+struct Register {
+    u16 value;
+    RegisterType type;
+};
+
+enum EmulationOptionFlags : u32 {
+    EMU_FLAG_NONE    = 0,
+    EMU_FLAG_VERBOSE = 1 << 0,
+};
+
+enum Flags : u16 {
+    // CF (Carry Flag): Set if the last arithmetic operation carried (for addition) or borrowed (for subtraction) beyond
+    // the most significant bit.
+    SF_CARRY_FLAG     = 0x0001,
+
+    // PF (Parity Flag): Set if the least significant byte of the result contains an even number of 1 bits.
+    SF_PARITY_FLAG    = 0x0004,
+
+    // AF (Auxiliary Carry Flag): Set if there was a carry from or borrow to bits 3 and 4 during the last arithmetic
+    // operation.
+    SF_AUX_CARRY_FLAG = 0x0010,
+
+    // ZF (Zero Flag): Set if the result of the operation is 0.
+    SF_ZERO_FLAG      = 0x0040,
+
+    // SF (Sign Flag): Set if the most significant bit (sign bit) of the result is set.
+    SF_SIGN_FLAG      = 0x0080,
+
+    // OF (Overflow Flag): Set if there's an overflow in a signed arithmetic operation.
+    SF_OVERFLOW_FLAG  = 0x0800,
+};
+
+struct EmulationContext {
+    constexpr static addr_size MEMORY_SIZE = core::MEGABYTE;
+    EmulationOptionFlags options;
+    core::arr<Instruction> instructions;
+    Register registers[i32(RegisterType::SENTINEL)];
+    u8 memory[MEMORY_SIZE];
+};
+
+EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOptionFlags options = EMU_FLAG_NONE);
+
+void emulate(EmulationContext& ctx);
 
 } // namespace asm8086
 

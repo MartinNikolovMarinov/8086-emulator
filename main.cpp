@@ -26,6 +26,7 @@ i32 main(i32 argc, char const** argv) {
 
     auto binaryData = ValueOrDie(core::file_read_full(g_cmdLineArgs.fileName, O_RDONLY, 0666), "Failed to read file");
     DecodingContext ctx = {};
+    ctx.options = DecodingOptionFlags(ctx.options | DecodingOptionFlags::DE_FLAG_IMMEDIATE_AS_HEX);
     decodeAsm8086(binaryData, ctx);
     core::str_builder<> sb;
     encodeAsm8086(sb, ctx);

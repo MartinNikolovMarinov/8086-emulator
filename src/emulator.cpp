@@ -359,44 +359,51 @@ const char* instTypeToCptr(InstType t) {
 
 namespace {
 
-void appendImmediate(core::str_builder<>& sb, u16 i) {
+void appendU16toSb(core::str_builder<>& sb, u16 i) {
     char ncptr[8] = {};
     core::int_to_cptr(u32(i), ncptr);
     sb.append(ncptr);
 }
+GUARD_FN_TYPE_DEDUCTION(appendU16toSb);
 
-GUARD_FN_TYPE_DEDUCTION(appendImmediate);
+void appendImmFromLowAndHigh(core::str_builder<>& sb, const DecodingContext& ctx, bool explictSign, u8 low, u8 high) {
+    auto appendSigned = [](core::str_builder<>& sb, auto i, bool explictSign) {
+        if (i < 0) {
+            if (explictSign) sb.append("- ");
+            else sb.append("-");
+            i = -i;
+        }
+        else {
+            if (explictSign) sb.append("+ ");
+        }
 
-void appendImmediateSignedWord(core::str_builder<>& sb, i16 i, bool explictSign = true) {
-    if (i < 0) {
-        if (explictSign) sb.append("- ");
-        else sb.append("-");
-        i = -i;
+        char ncptr[8] = {};
+        core::int_to_cptr(i32(i), ncptr);
+        sb.append(ncptr);
+
+    };
+
+    if (ctx.options & DE_FLAG_IMMEDIATE_AS_SIGNED) {
+        if (high != 0) appendSigned(sb, i16((high << 8) | low), explictSign);
+        else appendSigned(sb, i8(low), explictSign);
+    }
+    else if (ctx.options & DE_FLAG_IMMEDIATE_AS_UNSIGNED) {
+        if (explictSign) sb.append("+ ");
+        appendU16toSb(sb, u16((high << 8) | low));
+    }
+    else if (ctx.options & DE_FLAG_IMMEDIATE_AS_HEX) {
+        char ncptr[5] = {};
+        core::int_to_hex(u16((high << 8) | low), ncptr);
+        if (explictSign) sb.append("+ ");
+        sb.append("0x");
+        sb.append(ncptr);
     }
     else {
-        if (explictSign) sb.append("+ ");
+        // Default ot using signed
+        if (high != 0) appendSigned(sb, i16((high << 8) | low), explictSign);
+        else appendSigned(sb, i8(low), explictSign);
     }
-
-    char ncptr[8] = {};
-    core::int_to_cptr(i32(i), ncptr);
-    sb.append(ncptr);
 }
-
-void appendImmediateSignedByte(core::str_builder<>& sb, i8 i, bool explictSign = true) {
-    if (i < 0) {
-        if (explictSign) sb.append("- ");
-        else sb.append("-");
-        i = -i;
-    }
-    else {
-        if (explictSign) sb.append("+ ");
-    }
-
-    char ncptr[8] = {};
-    core::int_to_cptr(i32(i), ncptr);
-    sb.append(ncptr);
-}
-
                                         // 000  001   010   011   100   101   110   111
 constexpr const char* reg8bitTable[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" }; // w = 0
 constexpr const char* reg16bitTable[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" }; // w = 1
@@ -416,23 +423,24 @@ void appendReg(core::str_builder<>& sb, u8 reg, bool isWord, bool isSegment = fa
     }
 }
 
-void appendRegDisp(core::str_builder<>& sb, u8 reg, u16 disp) {
+void appendRegDisp(core::str_builder<>& sb, const DecodingContext& ctx, u8 reg, u8 dispLow, u8 dispHigh) {
     sb.append(regDispTable[reg]);
-    if (disp != 0) {
+    if (dispLow != 0 || dispHigh != 0) {
         sb.append(" ");
-        appendImmediateSignedWord(sb, i16(disp), true);
+        appendImmFromLowAndHigh(sb, ctx, true, dispLow, dispHigh);
     }
 }
 
-void appendMemory(core::str_builder<>& sb, u8 rm, u16 disp, bool isWord, bool isCalc, bool isDirect) {
+void appendMemory(core::str_builder<>& sb, const DecodingContext& ctx,
+                 u8 rm, u8 dispLow, u8 dispHigh, bool isWord, bool isCalc, bool isDirect) {
     if (isDirect) {
         sb.append("[");
-        appendImmediate(sb, disp);
+        appendImmFromLowAndHigh(sb, ctx, false, dispLow, dispHigh);
         sb.append("]");
     }
     else if (isCalc) {
         sb.append("[");
-        appendRegDisp(sb, rm, disp);
+        appendRegDisp(sb, ctx, rm, dispLow, dispHigh);
         sb.append("]");
     }
     else {
@@ -441,8 +449,8 @@ void appendMemory(core::str_builder<>& sb, u8 rm, u16 disp, bool isWord, bool is
 }
 
 void encodeInstruction(core::str_builder<>& sb,
+                       const DecodingContext& ctx,
                        const Instruction& inst,
-                       const core::arr<JmpLabel>& jmpLabels,
                        addr_size byteIdx) {
     u8 d = inst.d;
     u8 w = inst.w;
@@ -457,22 +465,18 @@ void encodeInstruction(core::str_builder<>& sb,
     bool isCalc = isEffectiveAddrCalc(mod);
     bool isDirect = isDirectAddrMode(mod, rm);
     bool dispIsWord = isDirect ? true : is16bitDisplacement(mod);
+    auto& jmpLabels = ctx.jmpLabels;
 
     auto appendToRegFromImm = [&](u8 dstReg, bool dstIsWord) {
-        u16 data = (u16(dataHigh) << 8) | u16(dataLow);
         appendReg(sb, dstReg, dstIsWord, false);
         sb.append(", ");
-        if (dstIsWord) appendImmediateSignedWord(sb, data, false);
-        else appendImmediateSignedByte(sb, dataLow, false);
+        appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
     };
     auto appendToMemFromImm = [&](u8 dstMem, bool immIsWord) {
-        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
         sb.append(immIsWord ? "word " : "byte ");
-        appendMemory(sb, dstMem, disp, dispIsWord, isCalc, isDirect);
+        appendMemory(sb, ctx, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
         sb.append(", ");
-        u16 data = u16FromLowAndHi(immIsWord, dataLow, dataHigh);
-        if (immIsWord) appendImmediateSignedWord(sb, data, false);
-        else appendImmediateSignedByte(sb, dataLow, false);
+        appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
     };
     auto appendToRegFromReg = [&](u8 dstReg, bool dstIsSegment,
                                 u8 srcReg, bool srcIsSegment, bool areWordRegs) {
@@ -481,22 +485,19 @@ void encodeInstruction(core::str_builder<>& sb,
         appendReg(sb, srcReg, areWordRegs, srcIsSegment);
     };
     auto appendToRegFromMem = [&](u8 dstMem, u8 srcReg, bool srcIsSegment, bool srcIsWord) {
-        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
-        appendMemory(sb, dstMem, disp, dispIsWord, isCalc, isDirect);
+        appendMemory(sb, ctx, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
         sb.append(", ");
         appendReg(sb, srcReg, srcIsWord, srcIsSegment);
     };
     auto appendToMemFromReg = [&](u8 dstReg, bool dstIsSegment, bool dstIsWord, u8 srcMem) {
-        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
         appendReg(sb, dstReg, dstIsWord, dstIsSegment);
         sb.append(", ");
-        appendMemory(sb, srcMem, disp, dispIsWord, isCalc, isDirect);
+        appendMemory(sb, ctx, srcMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
     };
     auto appendMemAcc = [&](bool accRegIsWord, u8 d) {
-        u16 addr = (u16(dataHigh) << 8) | u16(dataLow);
         if (d) {
             sb.append("[");
-            appendImmediateSignedWord(sb, addr, false);
+            appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
             sb.append("]");
             sb.append(", ");
             appendReg(sb, 0b000, accRegIsWord);
@@ -505,16 +506,14 @@ void encodeInstruction(core::str_builder<>& sb,
             appendReg(sb, 0b000, accRegIsWord);
             sb.append(", ");
             sb.append("[");
-            appendImmediateSignedWord(sb, addr, false);
+            appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
             sb.append("]");
         }
     };
     auto appendToAccFromImm = [&](bool accRegIsWord) {
-        u16 data = (u16(dataHigh) << 8) | u16(dataLow);
         appendReg(sb, 0b000, accRegIsWord, false);
         sb.append(", ");
-        if (accRegIsWord) appendImmediateSignedWord(sb, data, false);
-        else appendImmediateSignedByte(sb, dataLow, false);
+        appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
     };
     auto appendShortLabel = [&]() {
         i8 shotJmpOffset = i8(dataLow);
@@ -527,7 +526,7 @@ void encodeInstruction(core::str_builder<>& sb,
             sb.append("label_");
             // TODO: I should makeup my mind on how long a jump is allowed. Is there a point to use 64 bit numbers, if yes,
             //       then there should be a function to append them.
-            appendImmediate(sb, u16(jmpLabels[jmpidx].labelIdx));
+            appendU16toSb(sb, u16(jmpLabels[jmpidx].labelIdx));
         }
     };
 
@@ -571,7 +570,7 @@ void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
             });
             if (jmpidx != -1) {
                 asmOut.append("label_");
-                appendImmediate(asmOut, u64(ctx.jmpLabels[jmpidx].labelIdx));
+                appendU16toSb(asmOut, u64(ctx.jmpLabels[jmpidx].labelIdx));
                 asmOut.append(":");
                 if (i != ctx.instructions.len()) {
                     // Don't want any empty lines at the end of the file. Ever.
@@ -586,7 +585,7 @@ void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
         }
         auto inst = ctx.instructions[i];
         byteIdx += inst.byteCount; // Intentionally increase the size before encoding.
-        encodeInstruction(asmOut, inst, ctx.jmpLabels, byteIdx);
+        encodeInstruction(asmOut, ctx, inst, byteIdx);
         asmOut.append("\n");
     }
 }

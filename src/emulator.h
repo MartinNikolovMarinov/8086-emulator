@@ -94,8 +94,16 @@ struct JmpLabel {
     addr_off labelIdx;
 };
 
+enum DecodingOptionFlags : u32 {
+    DE_FLAG_NONE = 0,
+    DE_FLAG_IMMEDIATE_AS_HEX = 1 << 1,
+    DE_FLAG_IMMEDIATE_AS_SIGNED = 1 << 2,
+    DE_FLAG_IMMEDIATE_AS_UNSIGNED = 1 << 3,
+};
+
 struct DecodingContext {
     addr_size idx = 0;
+    DecodingOptionFlags options = DE_FLAG_NONE;
     core::arr<Instruction> instructions;
     core::arr<JmpLabel> jmpLabels;
 };
@@ -131,7 +139,7 @@ struct Register {
 };
 
 enum EmulationOptionFlags : u32 {
-    EMU_FLAG_NONE    = 0,
+    EMU_FLAG_NONE = 0,
     EMU_FLAG_VERBOSE = 1 << 0,
 };
 

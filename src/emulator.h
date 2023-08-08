@@ -60,7 +60,7 @@ enum struct Operands : u8 {
     ShortLabel,
 
     SegReg_Register16,
-    SetReg_Memory16,
+    SegReg_Memory16,
     Register16_SegReg,
     Memory_SegReg,
 };
@@ -104,8 +104,20 @@ void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx);
 void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx);
 
 enum struct RegisterType : u8 {
-    AX, CX, DX, BX, SP, BP, SI, DI,
-    CS, DS, SS, ES,
+    AX,
+    CX,
+    DX,
+    BX,
+    SP,
+    BP,
+    SI,
+    DI,
+
+    CS, // Code segment (CS) - Points to the segment containing the current execution code.
+    DS, // Data segment (DS) - Points to the segment where variables are stored.
+    SS, // Stack segment (SS) - Points to the segment where the stack is maintained.
+    ES, // Extra segment (ES) - General purpose segment register.
+
     IP,
     FLAGS,
     SENTINEL

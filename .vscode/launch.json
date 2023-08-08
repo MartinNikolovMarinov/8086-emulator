@@ -15,12 +15,13 @@
                 // "-f", "${workspaceFolder}/build/04_challange_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/05_add_sub_cmp_jnz.asm.o"
                 // "-f", "${workspaceFolder}/build/test_01_from_01_to_05.asm.o"
+                "-f", "${workspaceFolder}/build/09_segment_registers.asm.o"
 
-                "-exec", "true",
-                "-verbose", "true",
+                // "-exec", "true",
+                // "-verbose", "true",
                 // "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o"
                 // "-f", "${workspaceFolder}/build/07_memory_to_register_sim.asm.o",
-                "-f", "${workspaceFolder}/build/08_half_register_movs.asm.o"
+                // "-f", "${workspaceFolder}/build/08_half_register_movs.asm.o"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

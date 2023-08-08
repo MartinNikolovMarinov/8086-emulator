@@ -9,13 +9,13 @@ bool isDirectAddrMode(Mod mod, u8 rm) {
     return mod == Mod::MEMORY_NO_DISPLACEMENT && rm == 0b110;
 }
 
+bool isEffectiveAddrCalc(Mod mod) {
+    return mod != Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
+}
+
 bool isDisplacementMode(Mod mod) {
     return mod == Mod::MEMORY_8_BIT_DISPLACEMENT ||
            mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
-}
-
-bool isEffectiveAddrCalc(Mod mod) {
-    return mod != Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
 }
 
 bool is8bitDisplacement(Mod mod) {
@@ -55,14 +55,11 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         }
 
         // Displacement byte(s) decoding.
-        if (fd.disp1.byteIdx > 0 && inst.mod == Mod::MEMORY_8_BIT_DISPLACEMENT) {
+        if (fd.disp1.byteIdx > 0 && is8bitDisplacement(inst.mod)) {
             inst.disp[0] = bytes[idx + ibc + 1];
             ibc++;
         }
-        else if (fd.disp1.byteIdx > 0 &&
-                 (inst.mod == Mod::MEMORY_16_BIT_DISPLACEMENT ||
-                  isDirectAddrMode(inst.mod, inst.rm))
-        ) {
+        else if (fd.disp1.byteIdx > 0 && (is16bitDisplacement(inst.mod) || isDirectAddrMode(inst.mod, inst.rm))) {
             inst.disp[0] = bytes[idx + ibc + 1];
             inst.disp[1] = bytes[idx + ibc + 2];
             ibc += 2;
@@ -133,10 +130,12 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
             inst.type = InstType::MOV;
             break;
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
-            Assert(false, "Not implemented");
+            inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_SegReg : Operands::Register16_SegReg;
+            inst.type = InstType::MOV;
             break;
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:
-            Assert(false, "Not implemented");
+            inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::SegReg_Memory16 : Operands::SegReg_Register16;
+            inst.type = InstType::MOV;
             break;
 
         case IMM_TO_FROM_REG_OR_MEM:
@@ -445,7 +444,7 @@ void encodeInstruction(core::str_builder<>& sb,
         disp = isCalc ? u16FromLowAndHi((w == 1), dispLow, dispHigh) : 0;
     }
     else {
-        disp = isCalc ? u16FromLowAndHi((mod == Mod::MEMORY_16_BIT_DISPLACEMENT), dispLow, dispHigh) : 0;
+        disp = isCalc ? u16FromLowAndHi(is16bitDisplacement(mod), dispLow, dispHigh) : 0;
     }
 
     auto appendMemoryAccumulator = [&]() {
@@ -520,7 +519,7 @@ void encodeInstruction(core::str_builder<>& sb,
         case Operands::ShortLabel:            appendShortLabel();            break;
         case Operands::Register_Register:                                    [[fallthrough]];
         case Operands::SegReg_Register16:                                    [[fallthrough]];
-        case Operands::SetReg_Memory16:                                      [[fallthrough]];
+        case Operands::SegReg_Memory16:                                      [[fallthrough]];
         case Operands::Register16_SegReg:                                    [[fallthrough]];
         case Operands::Memory_SegReg:                                        [[fallthrough]];
         case Operands::None:                  sb.append("(encoding faild)"); break;
@@ -593,6 +592,10 @@ const char* regTypeToCptr(const RegisterType& rtype) {
 }
 
 namespace {
+
+void setRegister(EmulationContext& ctx, const RegisterType& rtype, u16 value) {
+    ctx.registers[i32(rtype)].value = value;
+}
 
 void executeMov(EmulationContext& ctx, const Instruction& inst) {
     if (inst.operands == Operands::Register_Immediate) {

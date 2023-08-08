@@ -121,10 +121,10 @@ enum struct RegisterType : u8 {
     SI, // Source Index (SI) - Used as a pointer to a source.
     DI, // Destination Index (DI) - Used as a pointer to a destination.
 
-    CS, // Code segment (CS) - Points to the segment containing the current execution code.
-    DS, // Data segment (DS) - Points to the segment where variables are stored.
-    SS, // Stack segment (SS) - Points to the segment where the stack is maintained.
     ES, // Extra segment (ES) - General purpose segment register.
+    CS, // Code segment (CS) - Points to the segment containing the current execution code.
+    SS, // Stack segment (SS) - Points to the segment where the stack is maintained.
+    DS, // Data segment (DS) - Points to the segment where variables are stored.
 
     IP, // Instruction Pointer (IP) - Contains the address of the next instruction to be executed.
     FLAGS, // Flags (FLAGS) - Contains the current state of the processor.

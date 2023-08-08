@@ -12,13 +12,41 @@ static constexpr addr_size g_segmentSize = g_memorySize / (64 * core::KILOBYTE) 
 
 void printRegisterState(EmulationContext& ctx) {
     fmt::print("Final Registers:\n");
-    for (i32 i = 0; i < i32(RegisterType::SENTINEL); ++i) {
-        auto reg = ctx.registers[i];
-        if (reg.type == RegisterType::CS || reg.type == RegisterType::IP) {
-            fmt::print("\n");
-        }
-        fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
-    }
+
+    auto reg = ctx.registers[i32(RegisterType::AX)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::BX)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::CX)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::DX)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::SP)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::BP)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::SI)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::DI)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+
+    fmt::print("\n");
+
+    reg = ctx.registers[i32(RegisterType::ES)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::SS)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::DS)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::CS)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+
+    fmt::print("\n");
+
+    reg = ctx.registers[i32(RegisterType::IP)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    reg = ctx.registers[i32(RegisterType::FLAGS)];
+    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
 }
 
 i32 main(i32 argc, char const** argv) {
@@ -31,7 +59,7 @@ i32 main(i32 argc, char const** argv) {
     core::str_builder<> sb;
     encodeAsm8086(sb, ctx);
 
-    if (!g_cmdLineArgs.execFlag) {
+    if (!g_cmdLineArgs.execFlag || g_cmdLineArgs.verboseFlag) {
         fmt::print("bits 16\n\n");
         fmt::print("{}", sb.view().buff);
     }
@@ -40,7 +68,9 @@ i32 main(i32 argc, char const** argv) {
         if (g_cmdLineArgs.verboseFlag) {
             emuCtx.options = EmulationOptionFlags(emuCtx.options | EmulationOptionFlags::EMU_FLAG_VERBOSE);
         }
+        if (g_cmdLineArgs.verboseFlag) fmt::print("\n");
         emulate(emuCtx);
+        if (g_cmdLineArgs.verboseFlag) fmt::print("\n");
         printRegisterState(emuCtx);
     }
 

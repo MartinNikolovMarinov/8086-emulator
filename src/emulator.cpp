@@ -114,7 +114,7 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
     switch (inst.opcode) {
         case MOV_IMM_TO_REG:
             inst.operands = Operands::Register_Immediate;
-            inst.rm = inst.reg; // special case
+            inst.rm = inst.reg;
             inst.type = InstType::MOV;
             break;
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
@@ -613,10 +613,10 @@ const char* regTypeToCptr(const RegisterType& rtype) {
         case RegisterType::BP:    return "bp";
         case RegisterType::SI:    return "si";
         case RegisterType::DI:    return "di";
-        case RegisterType::CS:    return "cs";
-        case RegisterType::DS:    return "ds";
-        case RegisterType::SS:    return "ss";
         case RegisterType::ES:    return "es";
+        case RegisterType::CS:    return "cs";
+        case RegisterType::SS:    return "ss";
+        case RegisterType::DS:    return "ds";
         case RegisterType::IP:    return "ip";
         case RegisterType::FLAGS: return "flags";
         default:                  return "invalid register";
@@ -625,36 +625,63 @@ const char* regTypeToCptr(const RegisterType& rtype) {
 
 namespace {
 
-void setRegister(EmulationContext& ctx, const RegisterType& rtype, u16 value) {
-    ctx.registers[i32(rtype)].value = value;
+void setRegister(EmulationContext& ctx, Register& dst, u8 low, u8 high) {
+    u16 old = dst.value;
+    if (high != 0) {
+        u16 data = (u16(high) << 8) | u16(low);
+        dst.value = data;
+    }
+    else {
+        u8 data = low;
+        dst.value = (dst.value & 0xFF00) | data;
+    }
+
+    if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
+        static i64 counter = 0;
+        fmt::print("({}) {}:{:#0x}->{:#0x}", ++counter, regTypeToCptr(dst.type), old, dst.value);
+    }
 }
 
-void executeMov(EmulationContext& ctx, const Instruction& inst) {
-    if (inst.operands == Operands::Register_Immediate) {
-        Register& destReg = ctx.registers[i32(inst.reg)];
-        u16 immValue = inst.w ? ((u16(inst.data[1]) << 8) | u16(inst.data[0])) : (inst.data[0]);
+Register& getRegister(EmulationContext& ctx, u8 rm, bool isSegment) {
+    Register& ret = !isSegment ?
+                        ctx.registers[i32(rm)] :
+                        ctx.registers[i32(RegisterType::ES) + i32(rm)];
+    return ret;
+}
 
-        u16 prev = destReg.value;
-        destReg.value = immValue;
-
-        if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
-            fmt::print("{} {}, {} ; {}:{:#0x}->{:#0x}\n",
-                        instTypeToCptr(inst.type), regTypeToCptr(destReg.type), immValue,
-                        regTypeToCptr(destReg.type), prev, destReg.value);
+void emulateMov(EmulationContext& ctx, const Instruction& inst) {
+    switch (inst.operands) {
+        case Operands::Register_Immediate:
+        {
+            // TODO: Cases where mod is effective address calculation, this is nonsense...
+            Register& dst = getRegister(ctx, inst.reg, false);
+            setRegister(ctx, dst, inst.data[0], inst.data[1]);
+            break;
         }
-    }
-    else if (inst.operands == Operands::Memory_Register) {
-        Register& destReg = ctx.registers[i32(inst.rm)];
-        Register& srcReg = ctx.registers[i32(inst.reg)];
-
-        u16 prev = srcReg.value;
-        destReg.value = srcReg.value;
-
-        if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
-            fmt::print("{} {}, {} ; {}:{:#0x}->{:#0x}\n",
-                        instTypeToCptr(inst.type), regTypeToCptr(destReg.type), srcReg.value,
-                        regTypeToCptr(srcReg.type), prev, destReg.value);
+        case Operands::Register_Register:
+        {
+            Register& src = getRegister(ctx, inst.rm, false);
+            Register& dst = getRegister(ctx, inst.reg, false);
+            setRegister(ctx, dst, u8(src.value & 0xFF), u8(src.value >> 8));
+            break;
         }
+        case Operands::Register16_SegReg:
+        {
+            Register& src = getRegister(ctx, inst.rm, false);
+            Register& dst = getRegister(ctx, inst.reg, true);
+            setRegister(ctx, dst, u8(src.value & 0xFF), u8(src.value >> 8));
+            break;
+        }
+        case Operands::SegReg_Register16:
+        {
+            Register& src = getRegister(ctx, inst.rm, true);
+            Register& dst = getRegister(ctx, inst.reg, false);
+            setRegister(ctx, dst, u8(src.value & 0xFF), u8(src.value >> 8));
+            break;
+        }
+        default:
+            Panic(false, "Instruction not supported yet.");
+            break;
     }
 }
 
@@ -666,7 +693,12 @@ void emulate(EmulationContext& ctx) {
         if (isDisplacementMode(inst.mod)) Panic(false, "Can't handle displacement mode yet.");
 
         switch (inst.type) {
-            case InstType::MOV: executeMov(ctx, inst); break;
+            case InstType::MOV:
+            {
+                emulateMov(ctx, inst);
+                fmt::print("\n");
+                break;
+            }
             default:
                 Panic(false, "Instruction type not supported yet.");
                 break;

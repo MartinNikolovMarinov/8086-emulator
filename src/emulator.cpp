@@ -9,6 +9,10 @@ bool isDirectAddrMode(Mod mod, u8 rm) {
     return mod == Mod::MEMORY_NO_DISPLACEMENT && rm == 0b110;
 }
 
+bool isRegToReg(Mod mod) {
+    return mod == Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
+}
+
 bool isEffectiveAddrCalc(Mod mod) {
     return mod != Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
 }
@@ -114,7 +118,8 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
             inst.type = InstType::MOV;
             break;
         case MOV_REG_OR_MEM_TO_OR_FROM_REG:
-            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            if (isRegToReg(inst.mod)) inst.operands = Operands::Register_Register;
+            else inst.operands = inst.d ? Operands::Memory_Register : Operands::Register_Memory;
             inst.type = InstType::MOV;
             break;
         case MOV_MEM_TO_ACC:
@@ -130,11 +135,11 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
             inst.type = InstType::MOV;
             break;
         case MOV_REG_OR_MEMORY_TO_SEGMENT_REG:
-            inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::Memory_SegReg : Operands::Register16_SegReg;
+            inst.operands = isRegToReg(inst.mod) ? Operands::Register16_SegReg : Operands::Memory_SegReg;
             inst.type = InstType::MOV;
             break;
         case MOV_SEGMENT_REG_TO_REG_OR_MEMORY:
-            inst.operands = isEffectiveAddrCalc(inst.mod) ? Operands::SegReg_Memory16 : Operands::SegReg_Register16;
+            inst.operands = isRegToReg(inst.mod)  ? Operands::SegReg_Register16 : Operands::SegReg_Memory16;
             inst.type = InstType::MOV;
             break;
 
@@ -162,7 +167,8 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         }
 
         case ADD_REG_OR_MEM_WITH_REG_TO_EDIT:
-            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            if (isRegToReg(inst.mod)) inst.operands = Operands::Register_Register;
+            else inst.operands = inst.d ? Operands::Memory_Register : Operands::Register_Memory;
             inst.type = InstType::ADD;
             break;
         case ADD_IMM_TO_ACC:
@@ -171,7 +177,8 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
             break;
 
         case SUB_REG_OR_MEM_WITH_REG_TO_EDIT:
-            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            if (isRegToReg(inst.mod)) inst.operands = Operands::Register_Register;
+            else inst.operands = inst.d ? Operands::Memory_Register : Operands::Register_Memory;
             inst.type = InstType::SUB;
             break;
         case SUB_IMM_FROM_ACC:
@@ -180,7 +187,8 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
             break;
 
         case CMP_REG_OR_MEM_WITH_REG:
-            inst.operands = inst.d ? Operands::Register_Memory : Operands::Memory_Register;
+            if (isRegToReg(inst.mod)) inst.operands = Operands::Register_Register;
+            else inst.operands = inst.d ? Operands::Memory_Register : Operands::Register_Memory;
             inst.type = InstType::CMP;
             break;
         case CMP_IMM_WITH_ACC:
@@ -396,8 +404,16 @@ constexpr const char* reg16bitTable[] = { "ax", "cx", "dx", "bx", "sp", "bp", "s
                                         //   000       001         010        011     100   101   110   111
 constexpr const char* regDispTable[]  = { "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx" }; // w = 0
 
-void appendReg(core::str_builder<>& sb, u8 reg, bool w) {
-    sb.append(w ? reg16bitTable[reg] : reg8bitTable[reg]);
+                                        // 000  001   010   011
+constexpr const char* segRegTable[]   = { "es", "cs", "ss", "ds" };
+
+void appendReg(core::str_builder<>& sb, u8 reg, bool isWord, bool isSegment = false) {
+    if (isSegment) {
+        sb.append(segRegTable[reg]);
+    }
+    else {
+        sb.append(isWord ? reg16bitTable[reg] : reg8bitTable[reg]);
+    }
 }
 
 void appendRegDisp(core::str_builder<>& sb, u8 reg, u16 disp) {
@@ -408,14 +424,19 @@ void appendRegDisp(core::str_builder<>& sb, u8 reg, u16 disp) {
     }
 }
 
-void appendMemory(core::str_builder<>& sb, u8 w, u8 rm, u16 disp, bool isCalc) {
-    if (!isCalc) {
-        appendReg(sb, rm, w);
+void appendMemory(core::str_builder<>& sb, u8 rm, u16 disp, bool isWord, bool isCalc, bool isDirect) {
+    if (isDirect) {
+        sb.append("[");
+        appendImmediate(sb, disp);
+        sb.append("]");
     }
-    else {
+    else if (isCalc) {
         sb.append("[");
         appendRegDisp(sb, rm, disp);
         sb.append("]");
+    }
+    else {
+        appendReg(sb, rm, isWord, false);
     }
 }
 
@@ -423,9 +444,7 @@ void encodeInstruction(core::str_builder<>& sb,
                        const Instruction& inst,
                        const core::arr<JmpLabel>& jmpLabels,
                        addr_size byteIdx) {
-    sb.append(instTypeToCptr(inst.type));
-    sb.append(" ");
-
+    u8 d = inst.d;
     u8 w = inst.w;
     u8 reg = inst.reg;
     u8 rm = inst.rm;
@@ -437,61 +456,65 @@ void encodeInstruction(core::str_builder<>& sb,
     auto operands = inst.operands;
     bool isCalc = isEffectiveAddrCalc(mod);
     bool isDirect = isDirectAddrMode(mod, rm);
+    bool dispIsWord = isDirect ? true : is16bitDisplacement(mod);
 
-    u16 data = u16FromLowAndHi((w == 1), dataLow, dataHigh);
-    u16 disp = 0;
-    if (isDirect) {
-        disp = isCalc ? u16FromLowAndHi((w == 1), dispLow, dispHigh) : 0;
-    }
-    else {
-        disp = isCalc ? u16FromLowAndHi(is16bitDisplacement(mod), dispLow, dispHigh) : 0;
-    }
-
-    auto appendMemoryAccumulator = [&]() {
-        appendReg(sb, reg, w);
+    auto appendToRegFromImm = [&](u8 dstReg, bool dstIsWord) {
+        u16 data = (u16(dataHigh) << 8) | u16(dataLow);
+        appendReg(sb, dstReg, dstIsWord, false);
         sb.append(", ");
-        sb.append("["); appendImmediateSignedWord(sb, data, false); sb.append("]");
+        if (dstIsWord) appendImmediateSignedWord(sb, data, false);
+        else appendImmediateSignedByte(sb, dataLow, false);
     };
-    auto appendMemoryRegister = [&]() {
-        appendMemory(sb, w, rm, disp, isCalc);
+    auto appendToMemFromImm = [&](u8 dstMem, bool immIsWord) {
+        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
+        sb.append(immIsWord ? "word " : "byte ");
+        appendMemory(sb, dstMem, disp, dispIsWord, isCalc, isDirect);
         sb.append(", ");
-        appendReg(sb, reg, w);
+        u16 data = u16FromLowAndHi(immIsWord, dataLow, dataHigh);
+        if (immIsWord) appendImmediateSignedWord(sb, data, false);
+        else appendImmediateSignedByte(sb, dataLow, false);
     };
-    auto appendMemoryImmediate = [&]() {
-        sb.append(w ? "word " : "byte ");
-        if (isDirect) {
-            sb.append("["); appendImmediateSignedWord(sb, disp, false); sb.append("]");
+    auto appendToRegFromReg = [&](u8 dstReg, bool dstIsSegment,
+                                u8 srcReg, bool srcIsSegment, bool areWordRegs) {
+        appendReg(sb, dstReg, areWordRegs, dstIsSegment);
+        sb.append(", ");
+        appendReg(sb, srcReg, areWordRegs, srcIsSegment);
+    };
+    auto appendToRegFromMem = [&](u8 dstMem, u8 srcReg, bool srcIsSegment, bool srcIsWord) {
+        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
+        appendMemory(sb, dstMem, disp, dispIsWord, isCalc, isDirect);
+        sb.append(", ");
+        appendReg(sb, srcReg, srcIsWord, srcIsSegment);
+    };
+    auto appendToMemFromReg = [&](u8 dstReg, bool dstIsSegment, bool dstIsWord, u8 srcMem) {
+        u16 disp = u16FromLowAndHi(dispIsWord, dispLow, dispHigh);
+        appendReg(sb, dstReg, dstIsWord, dstIsSegment);
+        sb.append(", ");
+        appendMemory(sb, srcMem, disp, dispIsWord, isCalc, isDirect);
+    };
+    auto appendMemAcc = [&](bool accRegIsWord, u8 d) {
+        u16 addr = (u16(dataHigh) << 8) | u16(dataLow);
+        if (d) {
+            sb.append("[");
+            appendImmediateSignedWord(sb, addr, false);
+            sb.append("]");
+            sb.append(", ");
+            appendReg(sb, 0b000, accRegIsWord);
         }
         else {
-            appendMemory(sb, w, rm, disp, isCalc);
-        }
-        sb.append(", ");
-        appendImmediateSignedWord(sb, data, false);
-    };
-    auto appendRegisterMemory = [&]() {
-        appendReg(sb, reg, w);
-        sb.append(", ");
-        if (isDirect) {
-            sb.append("["); appendImmediateSignedWord(sb, disp, false); sb.append("]");
-        }
-        else {
-            appendMemory(sb, w, rm, disp, isCalc);
+            appendReg(sb, 0b000, accRegIsWord);
+            sb.append(", ");
+            sb.append("[");
+            appendImmediateSignedWord(sb, addr, false);
+            sb.append("]");
         }
     };
-    auto appendRegisterImmediate = [&]() {
-        appendReg(sb, rm, w);
+    auto appendToAccFromImm = [&](bool accRegIsWord) {
+        u16 data = (u16(dataHigh) << 8) | u16(dataLow);
+        appendReg(sb, 0b000, accRegIsWord, false);
         sb.append(", ");
-        appendImmediateSignedWord(sb, data, false);
-    };
-    auto appendAccumulatorMemory = [&]() {
-        sb.append("["); appendImmediateSignedWord(sb, data, false); sb.append("]");
-        sb.append(", ");
-        appendReg(sb, rm, w);
-    };
-    auto appendAccumulatorImmediate = [&]() {
-        appendReg(sb, rm, w);
-        sb.append(", ");
-        appendImmediateSignedWord(sb, data, false);
+        if (accRegIsWord) appendImmediateSignedWord(sb, data, false);
+        else appendImmediateSignedByte(sb, dataLow, false);
     };
     auto appendShortLabel = [&]() {
         i8 shotJmpOffset = i8(dataLow);
@@ -502,27 +525,37 @@ void encodeInstruction(core::str_builder<>& sb,
         }
         else {
             sb.append("label_");
-            // TODO: I should makeup my mind on how long a jump is allowed. Is there a point to use 64 bit nubmers, if yes,
+            // TODO: I should makeup my mind on how long a jump is allowed. Is there a point to use 64 bit numbers, if yes,
             //       then there should be a function to append them.
             appendImmediate(sb, u16(jmpLabels[jmpidx].labelIdx));
         }
     };
 
+    // Encode instruction name:
+    sb.append(instTypeToCptr(inst.type));
+    sb.append(" ");
+
     switch (operands) {
-        case Operands::Memory_Accumulator:    appendMemoryAccumulator();     break;
-        case Operands::Memory_Register:       appendMemoryRegister();        break;
-        case Operands::Memory_Immediate:      appendMemoryImmediate();       break;
-        case Operands::Register_Memory:       appendRegisterMemory();        break;
-        case Operands::Register_Immediate:    appendRegisterImmediate();     break;
-        case Operands::Accumulator_Memory:    appendAccumulatorMemory();     break;
-        case Operands::Accumulator_Immediate: appendAccumulatorImmediate();  break;
-        case Operands::ShortLabel:            appendShortLabel();            break;
-        case Operands::Register_Register:                                    [[fallthrough]];
-        case Operands::SegReg_Register16:                                    [[fallthrough]];
-        case Operands::SegReg_Memory16:                                      [[fallthrough]];
-        case Operands::Register16_SegReg:                                    [[fallthrough]];
-        case Operands::Memory_SegReg:                                        [[fallthrough]];
-        case Operands::None:                  sb.append("(encoding faild)"); break;
+        case Operands::Accumulator_Memory:    appendMemAcc((w == 1), d); break;
+        case Operands::Accumulator_Immediate: appendToAccFromImm((w == 1)); break;
+
+        case Operands::Memory_Accumulator:    appendMemAcc((w == 1), d); break;
+        case Operands::Memory_Immediate:      appendToMemFromImm(rm, (w == 1));  break;
+        case Operands::Memory_Register:       appendToMemFromReg(reg, false, (w == 1), rm); break;
+
+        case Operands::Register_Register:     appendToRegFromReg(rm, false, reg, false, (w == 1)); break;
+        case Operands::Register_Memory:       appendToRegFromMem(rm, reg, false, (w == 1)); break;
+        case Operands::Register_Immediate:    appendToRegFromImm(rm, (w == 1)); break;
+
+        case Operands::SegReg_Register16:     appendToRegFromReg(rm, false, reg, true, true); break;
+        case Operands::Register16_SegReg:     appendToRegFromReg(reg, true, rm, false, true); break;
+
+        case Operands::SegReg_Memory16:       appendToRegFromMem(rm, reg, true, true); break;
+        case Operands::Memory_SegReg:         appendToMemFromReg(reg, true, true, rm); break;
+
+        case Operands::ShortLabel:            appendShortLabel(); break;
+
+        case Operands::None:                  sb.append("(encoding failed)"); break;
     }
 }
 

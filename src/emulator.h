@@ -104,22 +104,22 @@ void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx);
 void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx);
 
 enum struct RegisterType : u8 {
-    AX,
-    CX,
-    DX,
-    BX,
-    SP,
-    BP,
-    SI,
-    DI,
+    AX, // Accumulator (AX) - Used in arithmetic operations.
+    CX, // Counter (CX) - Used as a counter in string and loop operations.
+    DX, // Data (DX) - Used in arithmetic operations.
+    BX, // Base (BX) - Used as a pointer to data.
+    SP, // Stack Pointer (SP) - Points to the top of the stack.
+    BP, // Base Pointer (BP) - Used to point to data on the stack.
+    SI, // Source Index (SI) - Used as a pointer to a source.
+    DI, // Destination Index (DI) - Used as a pointer to a destination.
 
     CS, // Code segment (CS) - Points to the segment containing the current execution code.
     DS, // Data segment (DS) - Points to the segment where variables are stored.
     SS, // Stack segment (SS) - Points to the segment where the stack is maintained.
     ES, // Extra segment (ES) - General purpose segment register.
 
-    IP,
-    FLAGS,
+    IP, // Instruction Pointer (IP) - Contains the address of the next instruction to be executed.
+    FLAGS, // Flags (FLAGS) - Contains the current state of the processor.
     SENTINEL
 };
 

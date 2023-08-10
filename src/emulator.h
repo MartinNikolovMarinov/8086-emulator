@@ -10,7 +10,11 @@ enum struct Mod : u8 {
     MEMORY_8_BIT_DISPLACEMENT            = 0b01,
     MEMORY_16_BIT_DISPLACEMENT           = 0b10,
     REGISTER_TO_REGISTER_NO_DISPLACEMENT = 0b11,
+
+    NONE_SENTINEL
 };
+
+const char* modeToCptr(Mod mod);
 
 enum struct InstType : u8 {
     UNKNOWN,
@@ -46,6 +50,7 @@ const char* instTypeToCptr(InstType t);
 
 enum struct Operands : u8 {
     None,
+
     Memory_Accumulator,
     Memory_Register,
     Memory_Immediate,
@@ -63,7 +68,11 @@ enum struct Operands : u8 {
     SegReg_Memory16,
     Register16_SegReg,
     Memory_SegReg,
+
+    SENTINEL
 };
+
+const char* operandsToCptr(Operands o);
 
 struct Instruction {
     // byte 1
@@ -88,6 +97,11 @@ struct Instruction {
     u8 byteCount;
     Operands operands;
 };
+
+
+// This should not be used for decoding, it only prints information about the instruction.
+static constexpr i32 INST_INFO_OUT_BUFFER_SIZE = 512;
+char* instructionToInfoCptr(const Instruction& inst, char* out);
 
 struct JmpLabel {
     addr_off byteOffset;

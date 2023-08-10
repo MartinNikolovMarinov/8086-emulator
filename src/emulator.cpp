@@ -6,27 +6,33 @@ namespace asm8086 {
 namespace {
 
 bool isDirectAddrMode(Mod mod, u8 rm) {
+    if (mod == Mod::NONE_SENTINEL) return false;
     return mod == Mod::MEMORY_NO_DISPLACEMENT && rm == 0b110;
 }
 
 bool isRegToReg(Mod mod) {
+    if (mod == Mod::NONE_SENTINEL) return false;
     return mod == Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
 }
 
 bool isEffectiveAddrCalc(Mod mod) {
+    if (mod == Mod::NONE_SENTINEL) return false;
     return mod != Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
 }
 
 bool isDisplacementMode(Mod mod) {
+    if (mod == Mod::NONE_SENTINEL) return false;
     return mod == Mod::MEMORY_8_BIT_DISPLACEMENT ||
            mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
 }
 
 bool is8bitDisplacement(Mod mod) {
+    if (mod == Mod::NONE_SENTINEL) return false;
     return mod == Mod::MEMORY_8_BIT_DISPLACEMENT;
 }
 
 bool is16bitDisplacement(Mod mod) {
+    if (mod == Mod::NONE_SENTINEL) return false;
     return mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
 }
 
@@ -48,6 +54,9 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
         if (fd.mod.byteIdx >= 0) {
             ibc = core::max(ibc, fd.mod.byteIdx);
             inst.mod = Mod((bytes[idx + ibc] & fd.mod.mask) >> fd.mod.offset);
+        }
+        else {
+            inst.mod = Mod::NONE_SENTINEL;
         }
         if (fd.reg.byteIdx >= 0) {
             ibc = core::max(ibc, fd.reg.byteIdx);
@@ -554,6 +563,7 @@ void encodeInstruction(core::str_builder<>& sb,
 
         case Operands::ShortLabel:            appendShortLabel(); break;
 
+        case Operands::SENTINEL:              sb.append("(encoding failed)"); break;
         case Operands::None:                  sb.append("(encoding failed)"); break;
     }
 }
@@ -603,6 +613,17 @@ EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, Emula
     return ctx;
 }
 
+const char* modeToCptr(Mod mod) {
+    switch (mod) {
+        case Mod::MEMORY_NO_DISPLACEMENT:               return "memory_no_displacement";
+        case Mod::MEMORY_8_BIT_DISPLACEMENT:            return "memory_8_bit_displacement";
+        case Mod::MEMORY_16_BIT_DISPLACEMENT:           return "memory_16_bit_displacement";
+        case Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT: return "register_to_register_no_displacement";
+        case Mod::NONE_SENTINEL:                        return "none";
+        default:                                        return "invalid mode";
+    }
+}
+
 const char* regTypeToCptr(const RegisterType& rtype) {
     switch (rtype) {
         case RegisterType::AX:    return "ax";
@@ -623,65 +644,188 @@ const char* regTypeToCptr(const RegisterType& rtype) {
     }
 }
 
-namespace {
+const char* operandsToCptr(Operands o) {
+    switch (o) {
+        case Operands::Memory_Accumulator:    return "memory_accumulator";
+        case Operands::Memory_Register:       return "memory_register";
+        case Operands::Memory_Immediate:      return "memory_immediate";
 
-void setRegister(EmulationContext& ctx, Register& dst, u8 low, u8 high) {
-    u16 old = dst.value;
-    if (high != 0) {
-        u16 data = (u16(high) << 8) | u16(low);
-        dst.value = data;
-    }
-    else {
-        u8 data = low;
-        dst.value = (dst.value & 0xFF00) | data;
-    }
+        case Operands::Register_Register:     return "register_register";
+        case Operands::Register_Memory:       return "register_memory";
+        case Operands::Register_Immediate:    return "register_immediate";
 
-    if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
-        static i64 counter = 0;
-        fmt::print("({}) {}:{:#0x}->{:#0x}", ++counter, regTypeToCptr(dst.type), old, dst.value);
+        case Operands::Accumulator_Memory:    return "accumulator_memory";
+        case Operands::Accumulator_Immediate: return "accumulator_immediate";
+
+        case Operands::ShortLabel:            return "shortlabel";
+
+        case Operands::SegReg_Register16:     return "segreg_register16";
+        case Operands::SegReg_Memory16:       return "segreg_memory16";
+        case Operands::Register16_SegReg:     return "register16_segreg";
+        case Operands::Memory_SegReg:         return "memory_segreg";
+
+        case Operands::None:                  return "none";
+        default:                              return "invalid operands";
     }
 }
 
-Register& getRegister(EmulationContext& ctx, u8 rm, bool isSegment) {
-    Register& ret = !isSegment ?
-                        ctx.registers[i32(rm)] :
-                        ctx.registers[i32(RegisterType::ES) + i32(rm)];
-    return ret;
+char* instructionToInfoCptr(const Instruction& inst, char* out) {
+    const char* opcodeCptr = opcodeToCptr(inst.opcode);
+    const char* instType = instTypeToCptr(inst.type);
+    char instByteSize[8] = {};
+    core::int_to_cptr(u32(inst.byteCount), instByteSize);
+    const char* operandsCptr = operandsToCptr(inst.operands);
+    const char* modCptr = modeToCptr(inst.mod);
+
+    out = fmt::format_to(out, "Instruction ({}):\n\tType=\"{}\",\n\tByteSize={},\n\tOperands={},\n\tD={}, S={}, W={},\n\t"
+                               "Mod=\"{}\"\n\tReg=0b{:03b}, RM=0b{:03b}\n",
+                               opcodeCptr, instType, instByteSize, operandsCptr, inst.d, inst.s, inst.w,
+                               modCptr, inst.reg, inst.rm);
+
+    if (inst.disp[0] != 0 || inst.disp[1] != 0) {
+        out = fmt::format_to(out, "\tDisp={{high:{:#06x},low:{:#06x}}}\n", inst.disp[1], inst.disp[0]);
+    }
+    if (inst.data[0] != 0 || inst.data[1] != 0) {
+        out = fmt::format_to(out, "\tData={{high:{:#06x},low:{:#06x}}}\n", inst.data[1], inst.data[0]);
+    }
+
+    return out;
+}
+
+namespace {
+
+constexpr inline bool isLowRegister(u8 reg)  { return reg < 0b100; }
+constexpr inline bool isHighRegister(u8 reg) { return reg >= 0b100; }
+
+constexpr inline u8 lowPart(u16 v) { return u8(v & 0x00FF); }
+constexpr inline u8 highPart(u16 v) { return u8((v & 0xFF00) >> 8); }
+
+void setRegisterFull(Register& reg, u8 low, u8 high) {
+    u16 data = (u16(high) << 8) | u16(low);
+    reg.value = data;
+}
+
+void setRegisterHigh(Register& reg, u8 high) {
+    u16 data = (u16(high) << 8) | (reg.value & 0x00FF);
+    reg.value = data;
+}
+
+void setRegisterLow(Register& reg, u8 low) {
+    u16 data = u16(low) | (reg.value & 0xFF00);
+    reg.value = data;
+}
+
+Register* getRegister(EmulationContext& ctx, u8 reg, bool isWord, bool isSegment) {
+    if (isSegment) {
+        Register& ret = ctx.registers[i32(RegisterType::ES) + i32(reg)];
+        return &ret;
+    }
+
+    if (isWord) {
+        Register& ret = ctx.registers[i32(RegisterType::AX) + i32(reg)];
+        return &ret;
+    }
+
+    // 8-bit register
+
+    switch (reg) {
+        // Lower registers:
+        case 0b000: return &ctx.registers[i32(RegisterType::AX)];
+        case 0b001: return &ctx.registers[i32(RegisterType::CX)];
+        case 0b010: return &ctx.registers[i32(RegisterType::DX)];
+        case 0b011: return &ctx.registers[i32(RegisterType::BX)];
+
+        // Higher registers:
+        case 0b100: return &ctx.registers[i32(RegisterType::AX)];
+        case 0b101: return &ctx.registers[i32(RegisterType::CX)];
+        case 0b110: return &ctx.registers[i32(RegisterType::DX)];
+        case 0b111: return &ctx.registers[i32(RegisterType::BX)];
+    }
+
+    Panic(false, "[BUG] failed to get register ");
+    return nullptr;
 }
 
 void emulateMov(EmulationContext& ctx, const Instruction& inst) {
+    Register* dst = nullptr;
+    bool dstIsLow = false;
+    u8 srcLow = 0; u8 srcHigh = 0;
+    bool srcIsLow = false;
+    bool isWord = inst.w ? true : false;
+
     switch (inst.operands) {
         case Operands::Register_Immediate:
         {
-            // TODO: Cases where mod is effective address calculation, this is nonsense...
-            Register& dst = getRegister(ctx, inst.reg, false);
-            setRegister(ctx, dst, inst.data[0], inst.data[1]);
+            dst = getRegister(ctx, inst.reg, isWord, false);
+            dstIsLow = isLowRegister(inst.reg);
+            srcLow = inst.data[0];
+            srcHigh = inst.data[1];
+            srcIsLow = true;
             break;
         }
         case Operands::Register_Register:
         {
-            Register& src = getRegister(ctx, inst.rm, false);
-            Register& dst = getRegister(ctx, inst.reg, false);
-            setRegister(ctx, dst, u8(src.value & 0xFF), u8(src.value >> 8));
+            dst = getRegister(ctx, inst.rm, isWord, false);
+            dstIsLow = isLowRegister(inst.rm);
+            Register* src = getRegister(ctx, inst.reg, isWord, false);
+            srcLow = lowPart(src->value);
+            srcHigh = highPart(src->value);
+            srcIsLow = isLowRegister(inst.reg);
             break;
         }
         case Operands::Register16_SegReg:
         {
-            Register& src = getRegister(ctx, inst.rm, false);
-            Register& dst = getRegister(ctx, inst.reg, true);
-            setRegister(ctx, dst, u8(src.value & 0xFF), u8(src.value >> 8));
+            dst = getRegister(ctx, inst.reg, true, true);
+            Register* src = getRegister(ctx, inst.rm, true, false);
+            srcLow = lowPart(src->value);
+            srcHigh = highPart(src->value);
+            isWord = true;
             break;
         }
         case Operands::SegReg_Register16:
         {
-            Register& src = getRegister(ctx, inst.rm, true);
-            Register& dst = getRegister(ctx, inst.reg, false);
-            setRegister(ctx, dst, u8(src.value & 0xFF), u8(src.value >> 8));
+            dst = getRegister(ctx, inst.rm, true, false);
+            Register* src = getRegister(ctx, inst.reg, true, true);
+            srcLow = lowPart(src->value);
+            srcHigh = highPart(src->value);
+            isWord = true;
             break;
         }
         default:
             Panic(false, "Instruction not supported yet.");
             break;
+    }
+
+    if (dst) {
+        u16 old = dst->value;
+
+        // Command has a destination register.
+        if (isWord) {
+            setRegisterFull(*dst, srcLow, srcHigh);
+        }
+        else {
+            if (srcIsLow) {
+                if (dstIsLow) {
+                    setRegisterLow(*dst, srcLow);
+                }
+                else {
+                    setRegisterHigh(*dst, srcLow);
+                }
+            }
+            else {
+                if (dstIsLow) {
+                    setRegisterLow(*dst, srcHigh);
+                }
+                else {
+                    setRegisterHigh(*dst, srcHigh);
+                }
+            }
+        }
+
+        if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
+            static i64 tmp_g_counter = 0;
+            fmt::print("({}) {}:{:#0x}->{:#0x}\n", ++tmp_g_counter, regTypeToCptr(dst->type), old, dst->value);
+        }
     }
 }
 
@@ -691,12 +835,16 @@ void emulate(EmulationContext& ctx) {
     for (addr_size i = 0; i < ctx.instructions.len(); i++) {
         auto inst = ctx.instructions[i];
         if (isDisplacementMode(inst.mod)) Panic(false, "Can't handle displacement mode yet.");
-
+#if 0
+        // Print the instruction info:
+        char info[INST_INFO_OUT_BUFFER_SIZE] = {};
+        instructionToInfoCptr(inst, info);
+        fmt::print("{}\n", info);
+#endif
         switch (inst.type) {
             case InstType::MOV:
             {
                 emulateMov(ctx, inst);
-                fmt::print("\n");
                 break;
             }
             default:

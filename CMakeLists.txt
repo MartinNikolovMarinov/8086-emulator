@@ -13,7 +13,6 @@ add_executable(${PROJECT_NAME}
     src/init_core.cpp
     src/init_core.h
 
-    src/emulator_utils.cpp
     src/emulator_utils.h
     src/emulator.cpp
     src/emulator.h

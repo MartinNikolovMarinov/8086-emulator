@@ -393,23 +393,23 @@ void appendImmFromLowAndHigh(core::str_builder<>& sb, const DecodingContext& ctx
     };
 
     if (ctx.options & DEC_OP_IMMEDIATE_AS_SIGNED) {
-        if (high != 0) appendSigned(sb, i16((high << 8) | low), explictSign);
+        if (high != 0) appendSigned(sb, i16(combineWord(low, high)), explictSign);
         else appendSigned(sb, i8(low), explictSign);
     }
     else if (ctx.options & DEC_OP_IMMEDIATE_AS_UNSIGNED) {
         if (explictSign) sb.append("+ ");
-        appendU16toSb(sb, u16((high << 8) | low));
+        appendU16toSb(sb, combineWord(low, high));
     }
     else if (ctx.options & DEC_OP_IMMEDIATE_AS_HEX) {
         char ncptr[5] = {};
-        core::int_to_hex(u16((high << 8) | low), ncptr);
+        core::int_to_hex(combineWord(low, high), ncptr);
         if (explictSign) sb.append("+ ");
         sb.append("0x");
         sb.append(ncptr);
     }
     else {
         // Default ot using signed
-        if (high != 0) appendSigned(sb, i16((high << 8) | low), explictSign);
+        if (high != 0) appendSigned(sb, i16(combineWord(low, high)), explictSign);
         else appendSigned(sb, i8(low), explictSign);
     }
 }
@@ -705,12 +705,6 @@ char* flagsToCptr(Flags f, char* buffer) {
 
 namespace {
 
-constexpr inline bool isLowRegister(u8 reg)  { return reg < 0b100; }
-constexpr inline bool isHighRegister(u8 reg) { return reg >= 0b100; }
-
-constexpr inline u8 lowPart(u16 v) { return u8(v & 0x00FF); }
-constexpr inline u8 highPart(u16 v) { return u8((v & 0xFF00) >> 8); }
-
 constexpr inline void setFlag(Register& flags, Flags flag, bool value) {
     flags.value = value ? (flags.value | flag) : (flags.value & ~flag);
 }
@@ -756,93 +750,130 @@ Register& getFlagsRegister(EmulationContext& ctx) {
 
 void emulateMov(Register& dst, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
     if (isWord) {
-        dst.value = (u16(srcHigh) << 8) | u16(srcLow);
+        dst.value = combineWord(srcLow, srcHigh);
         return;
     }
 
     u8 srcVal = srcIsLow ? srcLow : srcHigh;
     if (dstIsLow) {
-        dst.value = (u16(srcVal) << 8) | (dst.value & 0x00FF);
+        dst.value = combineWord(clearHighPart(dst.value), srcVal);
     }
     else {
-        dst.value = u16(srcVal) | (dst.value & 0xFF00);
+        dst.value = combineWord(srcVal, clearLowPart(dst.value));
     }
 }
 
-void arithmeticOpSetFlags(Register& flags, u8 val) {
-    u8 low = lowPart(val);
-    i32 setOneBits = __builtin_popcount(i32(low));
-    setFlag(flags, Flags::CPU_FLAG_PARITY_FLAG, (setOneBits & 1) == 0);
-    setFlag(flags, Flags::CPU_FLAG_ZERO_FLAG, val == 0);
-    setFlag(flags, Flags::CPU_FLAG_SIGN_FLAG, i8(val) < 0);
-}
+constexpr inline void setOperationFlags(Register& flags, u16 original, u16 next,
+                                        bool isWord, bool zeroFlag, bool signFlag, bool carryFlag, bool overflowFlag,
+                                        u8 srcLow, u8 srcHigh, bool srcIsLow) {
+    setFlag(flags, CPU_FLAG_ZERO_FLAG, zeroFlag);
+    setFlag(flags, CPU_FLAG_SIGN_FLAG, signFlag);
+    setFlag(flags, CPU_FLAG_CARRY_FLAG, carryFlag);
+    setFlag(flags, CPU_FLAG_OVERFLOW_FLAG, overflowFlag);
 
-void arithmeticOpSetFlags(Register& flags, u16 val) {
-    u8 low = lowPart(val);
-    i32 setOneBits = __builtin_popcount(i32(low));
-    setFlag(flags, Flags::CPU_FLAG_PARITY_FLAG, (setOneBits & 1) == 0);
-    setFlag(flags, Flags::CPU_FLAG_ZERO_FLAG, val == 0);
-    setFlag(flags, Flags::CPU_FLAG_SIGN_FLAG, i16(val) < 0);
-}
+    // Parity flag
 
-// FIXME: Next flags to implement:
-// CPU_FLAG_CARRY_FLAG
-// CPU_FLAG_AUX_CARRY_FLAG
-// CPU_FLAG_OVERFLOW_FLAG
+    i32 setBitsCount = __builtin_popcount(lowPart(next));
+    setFlag(flags, CPU_FLAG_PARITY_FLAG, (setBitsCount & 0x1) == 0);
+
+    // Auxiliary carry flag
+
+    bool auxCarryFlag = false;
+    if (isWord) {
+        auxCarryFlag = ((original ^ ((u16(srcHigh) << 8) | u16(srcLow)) ^ next) & 0x10) != 0;
+    }
+    else {
+        u8 originalLow = lowPart(original);
+        u8 operand = srcIsLow ? srcLow : srcHigh;
+        auxCarryFlag = ((originalLow ^ operand ^ lowPart(next)) & 0x10) != 0;
+    }
+    setFlag(flags, CPU_FLAG_AUX_CARRY_FLAG, auxCarryFlag);
+}
 
 void emulateAdd(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    if (isWord) {
-        dst.value += (u16(srcHigh) << 8) | u16(srcLow);
-        arithmeticOpSetFlags(flags, dst.value);
-        return;
-    }
+    bool signFlag, zeroFlag, carryFlag, overflowFlag;
+    u16 original = dst.value;
+    u16 next;
 
-    u8 srcVal = srcIsLow ? srcLow : srcHigh;
-    if (dstIsLow) {
-        dst.value += u16(srcVal);
+    if (isWord) {
+        u16 src = combineWord(srcLow, srcHigh);
+        next = dst.value + src;
+        signFlag = i16(next) < 0;
+        zeroFlag = next == 0;
+        carryFlag = next < original;
+        overflowFlag = isSignedBitSet(src) == isSignedBitSet(original) &&
+                       isSignedBitSet(src) != isSignedBitSet(next);
     }
     else {
-        dst.value += u16(srcVal) << 8;
+        u8 srcVal = srcIsLow ? srcLow : srcHigh;
+        if (dstIsLow) {
+            u8 dstLow = lowPart(dst.value);
+            dstLow += srcVal;
+            next = clearLowPart(dst.value) | u16(dstLow);
+            signFlag = i8(dstLow) < 0;
+            zeroFlag = dstLow == 0;
+            carryFlag = dstLow < lowPart(original);
+            overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(lowPart(original)) &&
+                           isSignedBitSet(srcVal) != isSignedBitSet(dstLow);
+        }
+        else {
+            u8 dstHigh = highPart(dst.value);
+            dstHigh += srcVal;
+            next = combineWord(clearHighPart(dst.value), dstHigh);
+            signFlag = i8(dstHigh) < 0;
+            zeroFlag = dstHigh == 0;
+            carryFlag = dstHigh < highPart(original);
+            overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(highPart(original)) &&
+                           isSignedBitSet(srcVal) != isSignedBitSet(dstHigh);
+        }
     }
 
-    arithmeticOpSetFlags(flags, srcVal);
+    dst.value = next;
+
+    setOperationFlags(flags, original, next, isWord, zeroFlag, signFlag, carryFlag, overflowFlag, srcLow, srcHigh, srcIsLow);
 }
 
 void emulateSub(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    if (isWord) {
-        dst.value -= (u16(srcHigh) << 8) | u16(srcLow);
-        arithmeticOpSetFlags(flags, dst.value);
-        return;
-    }
+    bool signFlag, zeroFlag, carryFlag, overflowFlag;
+    u16 original = dst.value;
+    u16 next;
 
-    u8 srcVal = srcIsLow ? srcLow : srcHigh;
-    if (dstIsLow) {
-        dst.value -= u16(srcVal);
+    if (isWord) {
+        u16 src = combineWord(srcLow, srcHigh);
+        next = dst.value - src;
+        signFlag = i16(next) < 0;
+        zeroFlag = next == 0;
+        carryFlag = original < next;
+        overflowFlag = (isSignedBitSet(original) != isSignedBitSet(src)) &&
+                       (isSignedBitSet(original) != isSignedBitSet(next));
     }
     else {
-        dst.value -= u16(srcVal) << 8;
+        u8 srcVal = srcIsLow ? srcLow : srcHigh;
+        if (dstIsLow) {
+            u8 dstLow = lowPart(dst.value);
+            dstLow -= srcVal;
+            next = clearLowPart(dst.value) | u16(dstLow);
+            signFlag = i8(dstLow) < 0;
+            zeroFlag = dstLow == 0;
+            carryFlag = lowPart(original) < dstLow;
+            overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
+                           (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
+        }
+        else {
+            u8 dstHigh = highPart(dst.value);
+            dstHigh -= srcVal;
+            next = combineWord(clearHighPart(dst.value), dstHigh);
+            signFlag = i8(dstHigh) < 0;
+            zeroFlag = dstHigh == 0;
+            carryFlag = highPart(original) < dstHigh;
+            overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
+                           (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
+        }
     }
 
-    arithmeticOpSetFlags(flags, srcVal);
-}
+    dst.value = next;
 
-void emulateCmp(const Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    u16 valCpy = dst.value;
-    if (isWord) {
-        valCpy -= (u16(srcHigh) << 8) | u16(srcLow);
-        arithmeticOpSetFlags(flags, valCpy);
-        return;
-    }
-
-    u8 srcVal = srcIsLow ? srcLow : srcHigh;
-    if (dstIsLow) {
-        valCpy -= u16(srcVal);
-    }
-    else {
-        valCpy -= u16(srcVal) << 8;
-    }
-
-    arithmeticOpSetFlags(flags, srcVal);
+    setOperationFlags(flags, original, next, isWord, zeroFlag, signFlag, carryFlag, overflowFlag, srcLow, srcHigh, srcIsLow);
 }
 
 void emulateNext(EmulationContext& ctx, const Instruction& inst) {
@@ -850,7 +881,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
     bool dstIsLow = false;
     u8 srcLow = 0; u8 srcHigh = 0;
     bool srcIsLow = false;
-    bool isWord = inst.w ? true : false;
+    bool isWord = inst.s ? false : (inst.w == 1);
 
     switch (inst.operands) {
         case Operands::Register_Immediate:
@@ -908,7 +939,8 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
             break;
         case InstType::CMP:
-            emulateCmp(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            dst->value = old; // cmp is the same as sub, but doesn't write to dst
             break;
         default:
             Panic(false, "Instruction not supported yet.");

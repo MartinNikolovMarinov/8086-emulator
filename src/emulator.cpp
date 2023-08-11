@@ -392,15 +392,15 @@ void appendImmFromLowAndHigh(core::str_builder<>& sb, const DecodingContext& ctx
 
     };
 
-    if (ctx.options & DE_FLAG_IMMEDIATE_AS_SIGNED) {
+    if (ctx.options & DEC_OP_IMMEDIATE_AS_SIGNED) {
         if (high != 0) appendSigned(sb, i16((high << 8) | low), explictSign);
         else appendSigned(sb, i8(low), explictSign);
     }
-    else if (ctx.options & DE_FLAG_IMMEDIATE_AS_UNSIGNED) {
+    else if (ctx.options & DEC_OP_IMMEDIATE_AS_UNSIGNED) {
         if (explictSign) sb.append("+ ");
         appendU16toSb(sb, u16((high << 8) | low));
     }
-    else if (ctx.options & DE_FLAG_IMMEDIATE_AS_HEX) {
+    else if (ctx.options & DEC_OP_IMMEDIATE_AS_HEX) {
         char ncptr[5] = {};
         core::int_to_hex(u16((high << 8) | low), ncptr);
         if (explictSign) sb.append("+ ");
@@ -600,7 +600,7 @@ void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
     }
 }
 
-EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOptionFlags options) {
+EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOpts options) {
     EmulationContext ctx;
     ctx.instructions = core::move(instructions);
     ctx.options = options;
@@ -692,6 +692,17 @@ char* instructionToInfoCptr(const Instruction& inst, char* out) {
     return out;
 }
 
+char* flagsToCptr(Flags f, char* buffer) {
+    buffer[0] = '-';
+    if (f & CPU_FLAG_CARRY_FLAG)     *buffer++ = 'C';
+    if (f & CPU_FLAG_PARITY_FLAG)    *buffer++ = 'P';
+    if (f & CPU_FLAG_AUX_CARRY_FLAG) *buffer++ = 'A';
+    if (f & CPU_FLAG_ZERO_FLAG)      *buffer++ = 'Z';
+    if (f & CPU_FLAG_SIGN_FLAG)      *buffer++ = 'S';
+    if (f & CPU_FLAG_OVERFLOW_FLAG)  *buffer++ = 'O';
+    return buffer;
+}
+
 namespace {
 
 constexpr inline bool isLowRegister(u8 reg)  { return reg < 0b100; }
@@ -700,19 +711,12 @@ constexpr inline bool isHighRegister(u8 reg) { return reg >= 0b100; }
 constexpr inline u8 lowPart(u16 v) { return u8(v & 0x00FF); }
 constexpr inline u8 highPart(u16 v) { return u8((v & 0xFF00) >> 8); }
 
-void setRegisterFull(Register& reg, u8 low, u8 high) {
-    u16 data = (u16(high) << 8) | u16(low);
-    reg.value = data;
+constexpr inline void setFlag(Register& flags, Flags flag, bool value) {
+    flags.value = value ? (flags.value | flag) : (flags.value & ~flag);
 }
 
-void setRegisterHigh(Register& reg, u8 high) {
-    u16 data = (u16(high) << 8) | (reg.value & 0x00FF);
-    reg.value = data;
-}
-
-void setRegisterLow(Register& reg, u8 low) {
-    u16 data = u16(low) | (reg.value & 0xFF00);
-    reg.value = data;
+constexpr inline bool isFlagSet(Register& flags, Flags flag) {
+    return (flags.value & flag) != Flags::CPU_FLAG_NONE;
 }
 
 Register* getRegister(EmulationContext& ctx, u8 reg, bool isWord, bool isSegment) {
@@ -746,7 +750,102 @@ Register* getRegister(EmulationContext& ctx, u8 reg, bool isWord, bool isSegment
     return nullptr;
 }
 
-void emulateMov(EmulationContext& ctx, const Instruction& inst) {
+Register& getFlagsRegister(EmulationContext& ctx) {
+    return ctx.registers[i32(RegisterType::FLAGS)];
+}
+
+void emulateMov(Register& dst, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
+    if (isWord) {
+        dst.value = (u16(srcHigh) << 8) | u16(srcLow);
+        return;
+    }
+
+    u8 srcVal = srcIsLow ? srcLow : srcHigh;
+    if (dstIsLow) {
+        dst.value = (u16(srcVal) << 8) | (dst.value & 0x00FF);
+    }
+    else {
+        dst.value = u16(srcVal) | (dst.value & 0xFF00);
+    }
+}
+
+void arithmeticOpSetFlags(Register& flags, u8 val) {
+    u8 low = lowPart(val);
+    i32 setOneBits = __builtin_popcount(i32(low));
+    setFlag(flags, Flags::CPU_FLAG_PARITY_FLAG, (setOneBits & 1) == 0);
+    setFlag(flags, Flags::CPU_FLAG_ZERO_FLAG, val == 0);
+    setFlag(flags, Flags::CPU_FLAG_SIGN_FLAG, i8(val) < 0);
+}
+
+void arithmeticOpSetFlags(Register& flags, u16 val) {
+    u8 low = lowPart(val);
+    i32 setOneBits = __builtin_popcount(i32(low));
+    setFlag(flags, Flags::CPU_FLAG_PARITY_FLAG, (setOneBits & 1) == 0);
+    setFlag(flags, Flags::CPU_FLAG_ZERO_FLAG, val == 0);
+    setFlag(flags, Flags::CPU_FLAG_SIGN_FLAG, i16(val) < 0);
+}
+
+// FIXME: Next flags to implement:
+// CPU_FLAG_CARRY_FLAG
+// CPU_FLAG_AUX_CARRY_FLAG
+// CPU_FLAG_OVERFLOW_FLAG
+
+void emulateAdd(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
+    if (isWord) {
+        dst.value += (u16(srcHigh) << 8) | u16(srcLow);
+        arithmeticOpSetFlags(flags, dst.value);
+        return;
+    }
+
+    u8 srcVal = srcIsLow ? srcLow : srcHigh;
+    if (dstIsLow) {
+        dst.value += u16(srcVal);
+    }
+    else {
+        dst.value += u16(srcVal) << 8;
+    }
+
+    arithmeticOpSetFlags(flags, srcVal);
+}
+
+void emulateSub(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
+    if (isWord) {
+        dst.value -= (u16(srcHigh) << 8) | u16(srcLow);
+        arithmeticOpSetFlags(flags, dst.value);
+        return;
+    }
+
+    u8 srcVal = srcIsLow ? srcLow : srcHigh;
+    if (dstIsLow) {
+        dst.value -= u16(srcVal);
+    }
+    else {
+        dst.value -= u16(srcVal) << 8;
+    }
+
+    arithmeticOpSetFlags(flags, srcVal);
+}
+
+void emulateCmp(const Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
+    u16 valCpy = dst.value;
+    if (isWord) {
+        valCpy -= (u16(srcHigh) << 8) | u16(srcLow);
+        arithmeticOpSetFlags(flags, valCpy);
+        return;
+    }
+
+    u8 srcVal = srcIsLow ? srcLow : srcHigh;
+    if (dstIsLow) {
+        valCpy -= u16(srcVal);
+    }
+    else {
+        valCpy -= u16(srcVal) << 8;
+    }
+
+    arithmeticOpSetFlags(flags, srcVal);
+}
+
+void emulateNext(EmulationContext& ctx, const Instruction& inst) {
     Register* dst = nullptr;
     bool dstIsLow = false;
     u8 srcLow = 0; u8 srcHigh = 0;
@@ -756,8 +855,8 @@ void emulateMov(EmulationContext& ctx, const Instruction& inst) {
     switch (inst.operands) {
         case Operands::Register_Immediate:
         {
-            dst = getRegister(ctx, inst.reg, isWord, false);
-            dstIsLow = isLowRegister(inst.reg);
+            dst = getRegister(ctx, inst.rm, isWord, false);
+            dstIsLow = isLowRegister(inst.rm);
             srcLow = inst.data[0];
             srcHigh = inst.data[1];
             srcIsLow = true;
@@ -796,35 +895,34 @@ void emulateMov(EmulationContext& ctx, const Instruction& inst) {
             break;
     }
 
-    if (dst) {
-        u16 old = dst->value;
+    u16 old = dst->value;
 
-        // Command has a destination register.
-        if (isWord) {
-            setRegisterFull(*dst, srcLow, srcHigh);
-        }
-        else {
-            if (srcIsLow) {
-                if (dstIsLow) {
-                    setRegisterLow(*dst, srcLow);
-                }
-                else {
-                    setRegisterHigh(*dst, srcLow);
-                }
-            }
-            else {
-                if (dstIsLow) {
-                    setRegisterLow(*dst, srcHigh);
-                }
-                else {
-                    setRegisterHigh(*dst, srcHigh);
-                }
-            }
-        }
+    switch (inst.type) {
+        case InstType::MOV:
+            emulateMov(*dst, dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            break;
+        case InstType::ADD:
+            emulateAdd(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            break;
+        case InstType::SUB:
+            emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            break;
+        case InstType::CMP:
+            emulateCmp(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            break;
+        default:
+            Panic(false, "Instruction not supported yet.");
+            break;
+    }
 
-        if (ctx.options & EmulationOptionFlags::EMU_FLAG_VERBOSE) {
-            static i64 tmp_g_counter = 0;
-            fmt::print("({}) {}:{:#0x}->{:#0x}\n", ++tmp_g_counter, regTypeToCptr(dst->type), old, dst->value);
+    if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
+        static i64 tmp_g_counter = 0;
+        char flagsBuf[BUFFER_SIZE_FLAGS] = {};
+        flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
+        if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
+            fmt::print("({}) {}, {}:{:#0x}->{:#0x}, flags: {}\n",
+                       ++tmp_g_counter, instTypeToCptr(inst.type),
+                       regTypeToCptr(dst->type), old, dst->value, flagsBuf);
         }
     }
 }
@@ -837,20 +935,11 @@ void emulate(EmulationContext& ctx) {
         if (isDisplacementMode(inst.mod)) Panic(false, "Can't handle displacement mode yet.");
 #if 0
         // Print the instruction info:
-        char info[INST_INFO_OUT_BUFFER_SIZE] = {};
+        char info[BUFFER_SIZE_INST_INFO_OUT] = {};
         instructionToInfoCptr(inst, info);
         fmt::print("{}\n", info);
 #endif
-        switch (inst.type) {
-            case InstType::MOV:
-            {
-                emulateMov(ctx, inst);
-                break;
-            }
-            default:
-                Panic(false, "Instruction type not supported yet.");
-                break;
-        }
+        emulateNext(ctx, inst);
     }
 }
 

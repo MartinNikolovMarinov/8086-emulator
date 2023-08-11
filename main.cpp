@@ -45,8 +45,13 @@ void printRegisterState(EmulationContext& ctx) {
 
     reg = ctx.registers[i32(RegisterType::IP)];
     fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+
     reg = ctx.registers[i32(RegisterType::FLAGS)];
-    fmt::print("\t{}: {:#06x} ({})\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    {
+        char flagsBuf[BUFFER_SIZE_FLAGS] = {};
+        flagsToCptr(Flags(reg.value), flagsBuf);
+        fmt::print("\t{}: {} ({})\n", regTypeToCptr(reg.type), flagsBuf, reg.value);
+    }
 }
 
 i32 main(i32 argc, char const** argv) {
@@ -54,7 +59,7 @@ i32 main(i32 argc, char const** argv) {
 
     auto binaryData = ValueOrDie(core::file_read_full(g_cmdLineArgs.fileName, O_RDONLY, 0666), "Failed to read file");
     DecodingContext ctx = {};
-    ctx.options = DecodingOptionFlags(ctx.options | DecodingOptionFlags::DE_FLAG_IMMEDIATE_AS_HEX);
+    ctx.options = DecodingOpts(ctx.options | DecodingOpts::DEC_OP_IMMEDIATE_AS_HEX);
     decodeAsm8086(binaryData, ctx);
     core::str_builder<> sb;
     encodeAsm8086(sb, ctx);
@@ -66,7 +71,7 @@ i32 main(i32 argc, char const** argv) {
     if (g_cmdLineArgs.execFlag) {
         EmulationContext emuCtx = createEmulationCtx(core::move(ctx.instructions));
         if (g_cmdLineArgs.verboseFlag) {
-            emuCtx.options = EmulationOptionFlags(emuCtx.options | EmulationOptionFlags::EMU_FLAG_VERBOSE);
+            emuCtx.options = EmulationOpts(emuCtx.options | EmulationOpts::EMU_OPT_VERBOSE);
         }
         if (g_cmdLineArgs.verboseFlag) fmt::print("\n");
         emulate(emuCtx);

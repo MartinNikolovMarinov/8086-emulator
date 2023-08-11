@@ -100,7 +100,7 @@ struct Instruction {
 
 
 // This should not be used for decoding, it only prints information about the instruction.
-static constexpr i32 INST_INFO_OUT_BUFFER_SIZE = 512;
+static constexpr addr_size BUFFER_SIZE_INST_INFO_OUT = 512;
 char* instructionToInfoCptr(const Instruction& inst, char* out);
 
 struct JmpLabel {
@@ -108,16 +108,16 @@ struct JmpLabel {
     addr_off labelIdx;
 };
 
-enum DecodingOptionFlags : u32 {
-    DE_FLAG_NONE = 0,
-    DE_FLAG_IMMEDIATE_AS_HEX = 1 << 1,
-    DE_FLAG_IMMEDIATE_AS_SIGNED = 1 << 2,
-    DE_FLAG_IMMEDIATE_AS_UNSIGNED = 1 << 3,
+enum DecodingOpts : u32 {
+    DEC_OP_NONE = 0,
+    DEC_OP_IMMEDIATE_AS_HEX = 1 << 1,
+    DEC_OP_IMMEDIATE_AS_SIGNED = 1 << 2,
+    DEC_OP_IMMEDIATE_AS_UNSIGNED = 1 << 3,
 };
 
 struct DecodingContext {
     addr_size idx = 0;
-    DecodingOptionFlags options = DE_FLAG_NONE;
+    DecodingOpts options = DEC_OP_NONE;
     core::arr<Instruction> instructions;
     core::arr<JmpLabel> jmpLabels;
 };
@@ -147,47 +147,52 @@ enum struct RegisterType : u8 {
 
 const char* regTypeToCptr(const RegisterType& r);
 
-struct Register {
-    u16 value;
-    RegisterType type;
-};
-
-enum EmulationOptionFlags : u32 {
-    EMU_FLAG_NONE = 0,
-    EMU_FLAG_VERBOSE = 1 << 0,
-};
-
 enum Flags : u16 {
+    CPU_FLAG_NONE           = 0x0000,
+
     // CF (Carry Flag): Set if the last arithmetic operation carried (for addition) or borrowed (for subtraction) beyond
     // the most significant bit.
-    SF_CARRY_FLAG     = 0x0001,
+    CPU_FLAG_CARRY_FLAG     = 0x0001,
 
     // PF (Parity Flag): Set if the least significant byte of the result contains an even number of 1 bits.
-    SF_PARITY_FLAG    = 0x0004,
+    CPU_FLAG_PARITY_FLAG    = 0x0004,
 
     // AF (Auxiliary Carry Flag): Set if there was a carry from or borrow to bits 3 and 4 during the last arithmetic
     // operation.
-    SF_AUX_CARRY_FLAG = 0x0010,
+    CPU_FLAG_AUX_CARRY_FLAG = 0x0010,
 
     // ZF (Zero Flag): Set if the result of the operation is 0.
-    SF_ZERO_FLAG      = 0x0040,
+    CPU_FLAG_ZERO_FLAG      = 0x0040,
 
     // SF (Sign Flag): Set if the most significant bit (sign bit) of the result is set.
-    SF_SIGN_FLAG      = 0x0080,
+    CPU_FLAG_SIGN_FLAG      = 0x0080,
 
     // OF (Overflow Flag): Set if there's an overflow in a signed arithmetic operation.
-    SF_OVERFLOW_FLAG  = 0x0800,
+    CPU_FLAG_OVERFLOW_FLAG  = 0x0800,
+};
+
+static constexpr addr_size BUFFER_SIZE_FLAGS = 16;
+char* flagsToCptr(Flags f, char* buffer);
+
+struct Register {
+    RegisterType type;
+    u16 value;
+};
+
+enum EmulationOpts : u32 {
+    EMU_OPT_NONE = 0,
+    EMU_OPT_VERBOSE = 1 << 0,
 };
 
 struct EmulationContext {
     constexpr static addr_size MEMORY_SIZE = core::MEGABYTE;
-    EmulationOptionFlags options;
+    EmulationOpts options;
     core::arr<Instruction> instructions;
     Register registers[i32(RegisterType::SENTINEL)];
     u8 memory[MEMORY_SIZE];
 };
 
-EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOptionFlags options = EMU_FLAG_NONE);
+EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOpts options = EMU_OPT_NONE);
 
 void emulate(EmulationContext& ctx);
 

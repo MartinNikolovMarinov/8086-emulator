@@ -795,6 +795,12 @@ void emulateAdd(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 s
     u16 original = dst.value;
     u16 next;
 
+    // FIXME: My assumption for flag setting is completely wrong. The only time adding word numbers sets any of the
+    // flags is when the destination register is 8bit register. It is not based on the size of data in register to
+    // immediate. When immediate is being store to a register I can assume that I the whole register is used and only
+    // set flags on the whole register. Only the cases where specifically al, bl, cl, dl, ah, bh, ch, dh are used I need
+    // to set flags based on the 8bit value. That is a bit crazy, but at least I know I am on the right track now.
+
     if (isWord) {
         u16 src = combineWord(srcLow, srcHigh);
         next = dst.value + src;

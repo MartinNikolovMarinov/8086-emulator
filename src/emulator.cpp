@@ -921,50 +921,94 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             isWord = true;
             break;
         }
+        case Operands::ShortLabel:
+        {
+            isWord = false;
+            break;
+        }
         default:
             Panic(false, "Instruction not supported yet.");
             break;
     }
 
-    u16 old = dst->value;
+    u16 old = dst ? dst->value : 0;
+    Register& ip = ctx.registers[i32(RegisterType::IP)];
+    i16 deltaIp = 0;
 
     switch (inst.type) {
         case InstType::MOV:
+            Assert(dst);
             emulateMov(*dst, dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
             break;
         case InstType::ADD:
+            Assert(dst);
             emulateAdd(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
             break;
         case InstType::SUB:
+            Assert(dst);
             emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
             break;
         case InstType::CMP:
+            Assert(dst);
             emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
             dst->value = old; // cmp is the same as sub, but doesn't write to dst
             break;
+        case InstType::JNZ:
+        case InstType::JNE:
+        {
+            // TODO: I should write a function for this, once I know how to abstract it.
+            Register& flags = getFlagsRegister(ctx);
+            if (isFlagSet(flags, Flags::CPU_FLAG_ZERO_FLAG) == false) {
+                deltaIp += i8(inst.data[0]);
+            }
+            break;
+        }
         default:
             Panic(false, "Instruction not supported yet.");
             break;
     }
 
-    if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
+    if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE &&
+        /* FIXME:
+            This dst != nullptr check  is a hack to avoid exploding on instructions that are not operations. I
+            should rethink the way printing happens right now. It seems to be a bit more instruction specific than I
+            expected.
+        */
+        dst != nullptr
+    ) {
         static i64 tmp_g_counter = 0;
         char flagsBuf[BUFFER_SIZE_FLAGS] = {};
         flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
-        if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
-            fmt::print("({}) {}, {}:{:#0x}->{:#0x}, flags: {}\n",
-                       ++tmp_g_counter, instTypeToCptr(inst.type),
-                       regTypeToCptr(dst->type), old, dst->value, flagsBuf);
-        }
+        fmt::print("({}) {}, {}:{:#0x}->{:#0x}, ip: {:#0x}, flags: {}\n",
+                    ++tmp_g_counter, instTypeToCptr(inst.type),
+                    regTypeToCptr(dst->type), old, dst->value, ip.value, flagsBuf);
     }
+
+    ip.value += deltaIp + inst.byteCount;
+}
+
+bool nextInst(const EmulationContext& ctx, Instruction& inst) {
+    // FIXME: Linear search on each instruction is the hacky way to make jumps work, for now. Once there is a proper
+    //        address table that can map into the instructions this will be trivial to fix.
+    const Register& ip = ctx.registers[i32(RegisterType::IP)];
+    addr_off byteOff = 0;
+    i64 idx = core::find(ctx.instructions, [&](const auto& el, addr_off) -> bool {
+        bool ret = ip.value == byteOff;
+        byteOff += el.byteCount;
+        return ret;
+    });
+    if (idx == -1) {
+        return false;
+    }
+    inst = ctx.instructions[idx];
+    return true;
 }
 
 } // namespace
 
 void emulate(EmulationContext& ctx) {
-    for (addr_size i = 0; i < ctx.instructions.len(); i++) {
-        auto inst = ctx.instructions[i];
-        if (isDisplacementMode(inst.mod)) Panic(false, "Can't handle displacement mode yet.");
+    Instruction inst;
+    while (nextInst(ctx, inst)) {
 #if 0
         // Print the instruction info:
         char info[BUFFER_SIZE_INST_INFO_OUT] = {};

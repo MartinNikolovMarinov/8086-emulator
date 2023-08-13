@@ -748,188 +748,221 @@ Register& getFlagsRegister(EmulationContext& ctx) {
     return ctx.registers[i32(RegisterType::FLAGS)];
 }
 
-void emulateMov(Register& dst, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    if (isWord) {
-        dst.value = combineWord(srcLow, srcHigh);
-        return;
-    }
+struct RegisterDest {
+    Register* reg;
+    bool isWord;
+    bool isLowReg;
+};
 
-    u8 srcVal = srcIsLow ? srcLow : srcHigh;
-    if (dstIsLow) {
-        dst.value = combineWord(clearHighPart(dst.value), srcVal);
-    }
-    else {
-        dst.value = combineWord(srcVal, clearLowPart(dst.value));
-    }
-}
+struct RegisterSource {
+    u8 low;
+    u8 hi;
+    bool isWord;
+    bool isLow;
+};
 
-constexpr inline void setOperationFlags(Register& flags, u16 original, u16 next,
-                                        bool isWord, bool zeroFlag, bool signFlag, bool carryFlag, bool overflowFlag,
-                                        u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    setFlag(flags, CPU_FLAG_ZERO_FLAG, zeroFlag);
-    setFlag(flags, CPU_FLAG_SIGN_FLAG, signFlag);
-    setFlag(flags, CPU_FLAG_CARRY_FLAG, carryFlag);
-    setFlag(flags, CPU_FLAG_OVERFLOW_FLAG, overflowFlag);
-
-    // Parity flag
-
-    i32 setBitsCount = __builtin_popcount(lowPart(next));
-    setFlag(flags, CPU_FLAG_PARITY_FLAG, (setBitsCount & 0x1) == 0);
-
-    // Auxiliary carry flag
-
-    bool auxCarryFlag = false;
-    if (isWord) {
-        auxCarryFlag = ((original ^ ((u16(srcHigh) << 8) | u16(srcLow)) ^ next) & 0x10) != 0;
+void emulateMov(RegisterDest& rdst, RegisterSource& rsrc) {
+    Register& rdstReg = *rdst.reg;
+    u16 next;
+    if (rdst.isWord) {
+        next = combineWord(rsrc.low, rsrc.hi);
     }
     else {
-        u8 originalLow = lowPart(original);
-        u8 operand = srcIsLow ? srcLow : srcHigh;
-        auxCarryFlag = ((originalLow ^ operand ^ lowPart(next)) & 0x10) != 0;
+        u8 srcVal = rsrc.isLow ? rsrc.low : rsrc.hi;
+        if (rdst.isLowReg) {
+            next = combineWord(srcVal, highPart(rdstReg.value));
+        }
+        else {
+            next = combineWord(lowPart(rdstReg.value), srcVal);
+        }
     }
-    setFlag(flags, CPU_FLAG_AUX_CARRY_FLAG, auxCarryFlag);
+
+    rdstReg.value = next;
 }
 
-void emulateAdd(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    bool signFlag, zeroFlag, carryFlag, overflowFlag;
-    u16 original = dst.value;
+void emulateAdd(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
+    bool signFlag, zeroFlag, carryFlag, overflowFlag, parityFlag, auxCarryFlag;
+    Register& rdstReg = *rdst.reg;
+    u16 original = rdstReg.value;
     u16 next;
 
-    // FIXME: My assumption for flag setting is completely wrong. The only time adding word numbers sets any of the
-    // flags is when the destination register is 8bit register. It is not based on the size of data in register to
-    // immediate. When immediate is being store to a register I can assume that I the whole register is used and only
-    // set flags on the whole register. Only the cases where specifically al, bl, cl, dl, ah, bh, ch, dh are used I need
-    // to set flags based on the 8bit value. That is a bit crazy, but at least I know I am on the right track now.
-
-    if (isWord) {
-        u16 src = combineWord(srcLow, srcHigh);
-        next = dst.value + src;
+    if (rdst.isWord) {
+        u16 src;
+        if (rsrc.isWord) {
+            src = combineWord(rsrc.low, rsrc.hi);
+        }
+        else {
+            i16 tmp = 0;
+            safeCastSignedInt(i8(rsrc.low), tmp);
+            src = u16(tmp);
+        }
+        next = rdstReg.value + src;
         signFlag = i16(next) < 0;
         zeroFlag = next == 0;
         carryFlag = next < original;
         overflowFlag = isSignedBitSet(src) == isSignedBitSet(original) &&
                        isSignedBitSet(src) != isSignedBitSet(next);
+        auxCarryFlag = ((original & 0xF) + (src & 0xF)) > 0xF;
+        i32 setBitsCount = __builtin_popcount(lowPart(next));
+        parityFlag = (setBitsCount & 0x1) == 0;
     }
     else {
-        u8 srcVal = srcIsLow ? srcLow : srcHigh;
-        if (dstIsLow) {
-            u8 dstLow = lowPart(dst.value);
+        u8 srcVal = rsrc.isLow ? rsrc.low : rsrc.hi;
+        if (rdst.isLowReg) {
+            u8 dstLow = lowPart(rdstReg.value);
             dstLow += srcVal;
-            next = clearLowPart(dst.value) | u16(dstLow);
+            next = combineWord(dstLow, highPart(rdstReg.value));
             signFlag = i8(dstLow) < 0;
             zeroFlag = dstLow == 0;
             carryFlag = dstLow < lowPart(original);
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(lowPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstLow);
+            auxCarryFlag = ((lowPart(original) & 0xF) + (srcVal & 0xF)) > 0xF;
+            i32 setBitsCount = __builtin_popcount(lowPart(next));
+            parityFlag = (setBitsCount & 0x1) == 0;
         }
         else {
-            u8 dstHigh = highPart(dst.value);
+            u8 dstHigh = highPart(rdstReg.value);
             dstHigh += srcVal;
-            next = combineWord(clearHighPart(dst.value), dstHigh);
+            next = combineWord(lowPart(rdstReg.value), dstHigh);
             signFlag = i8(dstHigh) < 0;
             zeroFlag = dstHigh == 0;
             carryFlag = dstHigh < highPart(original);
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(highPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstHigh);
+            auxCarryFlag = ((highPart(original) & 0x0F) + (srcVal & 0x0F)) > 0x0F;
+            i32 setBitsCount = __builtin_popcount(highPart(next));
+            parityFlag = (setBitsCount & 0x1) == 0;
         }
+
     }
 
-    dst.value = next;
+    rdstReg.value = next;
 
-    setOperationFlags(flags, original, next, isWord, zeroFlag, signFlag, carryFlag, overflowFlag, srcLow, srcHigh, srcIsLow);
+    setFlag(flags, CPU_FLAG_SIGN_FLAG, signFlag);
+    setFlag(flags, CPU_FLAG_ZERO_FLAG, zeroFlag);
+    setFlag(flags, CPU_FLAG_CARRY_FLAG, carryFlag);
+    setFlag(flags, CPU_FLAG_OVERFLOW_FLAG, overflowFlag);
+    setFlag(flags, CPU_FLAG_PARITY_FLAG, parityFlag);
+    setFlag(flags, CPU_FLAG_AUX_CARRY_FLAG, auxCarryFlag);
 }
 
-void emulateSub(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-    bool signFlag, zeroFlag, carryFlag, overflowFlag;
-    u16 original = dst.value;
-    u16 next;
+// void emulateSub(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
+//     bool signFlag, zeroFlag, carryFlag, overflowFlag;
+//     u16 original = dst.value;
+//     u16 next;
 
-    if (isWord) {
-        u16 src = combineWord(srcLow, srcHigh);
-        next = dst.value - src;
-        signFlag = i16(next) < 0;
-        zeroFlag = next == 0;
-        carryFlag = original < next;
-        overflowFlag = (isSignedBitSet(original) != isSignedBitSet(src)) &&
-                       (isSignedBitSet(original) != isSignedBitSet(next));
-    }
-    else {
-        u8 srcVal = srcIsLow ? srcLow : srcHigh;
-        if (dstIsLow) {
-            u8 dstLow = lowPart(dst.value);
-            dstLow -= srcVal;
-            next = clearLowPart(dst.value) | u16(dstLow);
-            signFlag = i8(dstLow) < 0;
-            zeroFlag = dstLow == 0;
-            carryFlag = lowPart(original) < dstLow;
-            overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
-                           (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
-        }
-        else {
-            u8 dstHigh = highPart(dst.value);
-            dstHigh -= srcVal;
-            next = combineWord(clearHighPart(dst.value), dstHigh);
-            signFlag = i8(dstHigh) < 0;
-            zeroFlag = dstHigh == 0;
-            carryFlag = highPart(original) < dstHigh;
-            overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
-                           (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
-        }
-    }
+//     if (isWord) {
+//         u16 src = combineWord(srcLow, srcHigh);
+//         next = dst.value - src;
+//         signFlag = i16(next) < 0;
+//         zeroFlag = next == 0;
+//         carryFlag = original < next;
+//         overflowFlag = (isSignedBitSet(original) != isSignedBitSet(src)) &&
+//                        (isSignedBitSet(original) != isSignedBitSet(next));
+//     }
+//     else {
+//         u8 srcVal = srcIsLow ? srcLow : srcHigh;
+//         if (dstIsLow) {
+//             u8 dstLow = lowPart(dst.value);
+//             dstLow -= srcVal;
+//             next = clearLowPart(dst.value) | u16(dstLow);
+//             signFlag = i8(dstLow) < 0;
+//             zeroFlag = dstLow == 0;
+//             carryFlag = lowPart(original) < dstLow;
+//             overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
+//                            (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
+//         }
+//         else {
+//             u8 dstHigh = highPart(dst.value);
+//             dstHigh -= srcVal;
+//             next = combineWord(clearHighPart(dst.value), dstHigh);
+//             signFlag = i8(dstHigh) < 0;
+//             zeroFlag = dstHigh == 0;
+//             carryFlag = highPart(original) < dstHigh;
+//             overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
+//                            (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
+//         }
+//     }
 
-    dst.value = next;
+//     dst.value = next;
 
-    setOperationFlags(flags, original, next, isWord, zeroFlag, signFlag, carryFlag, overflowFlag, srcLow, srcHigh, srcIsLow);
-}
+//     setOperationFlags(flags, original, next, isWord, zeroFlag, signFlag, carryFlag, overflowFlag, srcLow, srcHigh, srcIsLow);
+// }
 
 void emulateNext(EmulationContext& ctx, const Instruction& inst) {
-    Register* dst = nullptr;
-    bool dstIsLow = false;
-    u8 srcLow = 0; u8 srcHigh = 0;
-    bool srcIsLow = false;
-    bool isWord = inst.s ? false : (inst.w == 1);
+    enum struct EmulationCmdType : u8 {
+        None,
+        Arithmetic,
+        ConditionalJmp
+    };
+
+    RegisterDest rdst = {};
+    rdst.isWord = (inst.w == 1);
+    RegisterSource rsrc = {};
+    EmulationCmdType cmdType = EmulationCmdType::None;
 
     switch (inst.operands) {
         case Operands::Register_Immediate:
         {
-            dst = getRegister(ctx, inst.rm, isWord, false);
-            dstIsLow = isLowRegister(inst.rm);
-            srcLow = inst.data[0];
-            srcHigh = inst.data[1];
-            srcIsLow = true;
+            // Set destination
+            rdst.reg = getRegister(ctx, inst.rm, rdst.isWord, false);
+            rdst.isLowReg = isLowRegister(inst.rm);
+            // Set source
+            rsrc.low = inst.data[0];
+            rsrc.hi = inst.data[1];
+            rsrc.isLow = true;
+            rsrc.isWord = inst.s ? false : (inst.w == 1);
+            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::Register_Register:
         {
-            dst = getRegister(ctx, inst.rm, isWord, false);
-            dstIsLow = isLowRegister(inst.rm);
-            Register* src = getRegister(ctx, inst.reg, isWord, false);
-            srcLow = lowPart(src->value);
-            srcHigh = highPart(src->value);
-            srcIsLow = isLowRegister(inst.reg);
+            // Set destination
+            rdst.reg = getRegister(ctx, inst.rm, rdst.isWord, false);
+            rdst.isLowReg = isLowRegister(inst.rm);
+            // Set source
+            Register* src = getRegister(ctx, inst.reg, rdst.isWord, false);
+            rsrc.low = lowPart(src->value);
+            rsrc.hi = highPart(src->value);
+            rsrc.isLow = isLowRegister(inst.reg);
+            rsrc.isWord = rdst.isWord;
+            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::Register16_SegReg:
         {
-            dst = getRegister(ctx, inst.reg, true, true);
+            // Set destination
+            rdst.reg= getRegister(ctx, inst.reg, true, true);
+            rdst.isLowReg = false;
+            rdst.isWord = true;
+            // Set source
             Register* src = getRegister(ctx, inst.rm, true, false);
-            srcLow = lowPart(src->value);
-            srcHigh = highPart(src->value);
-            isWord = true;
+            rsrc.low = lowPart(src->value);
+            rsrc.hi = highPart(src->value);
+            rsrc.isLow = true;
+            rsrc.isWord = true;
+            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::SegReg_Register16:
         {
-            dst = getRegister(ctx, inst.rm, true, false);
+            // Set destination
+            rdst.reg = getRegister(ctx, inst.rm, true, false);
+            rdst.isLowReg = false;
+            rdst.isWord = true;
+            // Set source
             Register* src = getRegister(ctx, inst.reg, true, true);
-            srcLow = lowPart(src->value);
-            srcHigh = highPart(src->value);
-            isWord = true;
+            rsrc.low = lowPart(src->value);
+            rsrc.hi = highPart(src->value);
+            rsrc.isLow = true;
+            rsrc.isWord = true;
+            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::ShortLabel:
         {
-            isWord = false;
+            cmdType = EmulationCmdType::ConditionalJmp;
             break;
         }
         default:
@@ -937,32 +970,33 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             break;
     }
 
-    u16 old = dst ? dst->value : 0;
+    // Sanity checks:
+    Assert(cmdType != EmulationCmdType::None, "Failed to set command type.");
+    Assert(cmdType == EmulationCmdType::Arithmetic && rdst.reg != nullptr,
+           "Failed to set destination register for arithmetic operation.");
+
+    u16 old = rdst.reg ? rdst.reg->value : 0;
     Register& ip = ctx.registers[i32(RegisterType::IP)];
     i16 deltaIp = 0;
 
     switch (inst.type) {
         case InstType::MOV:
-            Assert(dst);
-            emulateMov(*dst, dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            emulateMov(rdst, rsrc);
             break;
         case InstType::ADD:
-            Assert(dst);
-            emulateAdd(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            emulateAdd(rdst, rsrc, getFlagsRegister(ctx));
             break;
         case InstType::SUB:
-            Assert(dst);
-            emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            // emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
             break;
         case InstType::CMP:
-            Assert(dst);
-            emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
-            dst->value = old; // cmp is the same as sub, but doesn't write to dst
+            // emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            rdst.reg->value = old; // cmp is the same as sub, but doesn't write to dst
             break;
         case InstType::JNZ:
         case InstType::JNE:
         {
-            // TODO: I should write a function for this, once I know how to abstract it.
+            // TODO: I should write a function for this, once I write a bit more jmp types and know how to abstract it.
             Register& flags = getFlagsRegister(ctx);
             if (isFlagSet(flags, Flags::CPU_FLAG_ZERO_FLAG) == false) {
                 deltaIp += i8(inst.data[0]);
@@ -974,20 +1008,22 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             break;
     }
 
-    if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE &&
-        /* FIXME:
-            This dst != nullptr check  is a hack to avoid exploding on instructions that are not operations. I
-            should rethink the way printing happens right now. It seems to be a bit more instruction specific than I
-            expected.
-        */
-        dst != nullptr
-    ) {
+    if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
         static i64 tmp_g_counter = 0;
-        char flagsBuf[BUFFER_SIZE_FLAGS] = {};
-        flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
-        fmt::print("({}) {}, {}:{:#0x}->{:#0x}, ip: {:#0x}, flags: {}\n",
-                    ++tmp_g_counter, instTypeToCptr(inst.type),
-                    regTypeToCptr(dst->type), old, dst->value, ip.value, flagsBuf);
+
+        // TODO: I can encode the full instructions here, on debug print.
+        // Print arithmetic operations:
+        if (cmdType == EmulationCmdType::Arithmetic) {
+            char flagsBuf[BUFFER_SIZE_FLAGS] = {};
+            flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
+            Register& dstReg = *rdst.reg;
+            fmt::print("({}) {}, {}:{:#0x}->{:#0x}, ip: {:#0x}, flags: {}\n",
+                        ++tmp_g_counter, instTypeToCptr(inst.type),
+                        regTypeToCptr(dstReg.type), old, dstReg.value, ip.value, flagsBuf);
+        }
+        else {
+            fmt::print("({}) {}, ip: {:#0x}\n", ++tmp_g_counter, instTypeToCptr(inst.type), ip.value);
+        }
     }
 
     ip.value += deltaIp + inst.byteCount;

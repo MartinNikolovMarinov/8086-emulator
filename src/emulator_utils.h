@@ -47,9 +47,6 @@ constexpr inline bool isHighRegister(u8 reg) { return reg >= 0b100; }
 constexpr inline u8 lowPart(u16 v) { return u8(v & 0x00FF); }
 constexpr inline u8 highPart(u16 v) { return u8((v & 0xFF00) >> 8); }
 
-constexpr inline u16 clearLowPart(u16 v) { return v & 0xFF00; }
-constexpr inline u16 clearHighPart(u16 v) { return v & 0x00FF; }
-
 constexpr inline u16 combineWord(u8 low, u8 high) { return u16(low) | (u16(high) << 8); }
 
 } // namespace asm8086

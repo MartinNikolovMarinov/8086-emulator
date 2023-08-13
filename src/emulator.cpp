@@ -803,7 +803,7 @@ void emulateAdd(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
         overflowFlag = isSignedBitSet(src) == isSignedBitSet(original) &&
                        isSignedBitSet(src) != isSignedBitSet(next);
         auxCarryFlag = ((original & 0xF) + (src & 0xF)) > 0xF;
-        i32 setBitsCount = __builtin_popcount(lowPart(next));
+        i32 setBitsCount = core::i_number_of_set_bits(u32(lowPart(next)));
         parityFlag = (setBitsCount & 0x1) == 0;
     }
     else {
@@ -818,7 +818,7 @@ void emulateAdd(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(lowPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstLow);
             auxCarryFlag = ((lowPart(original) & 0xF) + (srcVal & 0xF)) > 0xF;
-            i32 setBitsCount = __builtin_popcount(lowPart(next));
+            i32 setBitsCount = core::i_number_of_set_bits(u32(lowPart(next)));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
         else {
@@ -831,7 +831,7 @@ void emulateAdd(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(highPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstHigh);
             auxCarryFlag = ((highPart(original) & 0x0F) + (srcVal & 0x0F)) > 0xF;
-            i32 setBitsCount = __builtin_popcount(highPart(next));
+            i32 setBitsCount = core::i_number_of_set_bits(u32(highPart(next)));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
 
@@ -870,7 +870,7 @@ void emulateSub(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
         overflowFlag = (isSignedBitSet(original) != isSignedBitSet(src)) &&
                        (isSignedBitSet(original) != isSignedBitSet(next));
         auxCarryFlag = ((original & 0xF) - (src & 0xF)) < 0;
-        i32 setBitsCount = __builtin_popcount(lowPart(next)); // FIXME: abstract this in corelib.
+        i32 setBitsCount = core::i_number_of_set_bits(u32(lowPart(next)));
         parityFlag = (setBitsCount & 0x1) == 0;
     }
     else {
@@ -885,7 +885,7 @@ void emulateSub(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
             overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
                            (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
             auxCarryFlag = ((lowPart(original) & 0xF) - (srcVal & 0xF)) < 0;
-            i32 setBitsCount = __builtin_popcount(lowPart(next));
+            i32 setBitsCount = core::i_number_of_set_bits(u32(lowPart(next)));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
         else {
@@ -898,7 +898,7 @@ void emulateSub(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
             overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
                            (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
             auxCarryFlag = ((highPart(original) & 0x0F) - (srcVal & 0x0F)) < 0;
-            i32 setBitsCount = __builtin_popcount(highPart(next));
+            i32 setBitsCount = core::i_number_of_set_bits(u32(highPart(next)));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
 
@@ -913,49 +913,6 @@ void emulateSub(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
     setFlag(flags, CPU_FLAG_PARITY_FLAG, parityFlag);
     setFlag(flags, CPU_FLAG_AUX_CARRY_FLAG, auxCarryFlag);
 }
-
-// void emulateSub(Register& dst, Register& flags, bool dstIsLow, bool isWord, u8 srcLow, u8 srcHigh, bool srcIsLow) {
-//     bool signFlag, zeroFlag, carryFlag, overflowFlag;
-//     u16 original = dst.value;
-//     u16 next;
-
-//     if (isWord) {
-//         u16 src = combineWord(srcLow, srcHigh);
-//         next = dst.value - src;
-//         signFlag = i16(next) < 0;
-//         zeroFlag = next == 0;
-//         carryFlag = original < next;
-//         overflowFlag = (isSignedBitSet(original) != isSignedBitSet(src)) &&
-//                        (isSignedBitSet(original) != isSignedBitSet(next));
-//     }
-//     else {
-//         u8 srcVal = srcIsLow ? srcLow : srcHigh;
-//         if (dstIsLow) {
-//             u8 dstLow = lowPart(dst.value);
-//             dstLow -= srcVal;
-//             next = clearLowPart(dst.value) | u16(dstLow);
-//             signFlag = i8(dstLow) < 0;
-//             zeroFlag = dstLow == 0;
-//             carryFlag = lowPart(original) < dstLow;
-//             overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
-//                            (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
-//         }
-//         else {
-//             u8 dstHigh = highPart(dst.value);
-//             dstHigh -= srcVal;
-//             next = combineWord(clearHighPart(dst.value), dstHigh);
-//             signFlag = i8(dstHigh) < 0;
-//             zeroFlag = dstHigh == 0;
-//             carryFlag = highPart(original) < dstHigh;
-//             overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
-//                            (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
-//         }
-//     }
-
-//     dst.value = next;
-
-//     setOperationFlags(flags, original, next, isWord, zeroFlag, signFlag, carryFlag, overflowFlag, srcLow, srcHigh, srcIsLow);
-// }
 
 void emulateNext(EmulationContext& ctx, const Instruction& inst) {
     enum struct EmulationCmdType : u8 {
@@ -1067,6 +1024,44 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             // TODO: I should write a function for this, once I write a bit more jmp types and know how to abstract it.
             Register& flags = getFlagsRegister(ctx);
             if (isFlagSet(flags, Flags::CPU_FLAG_ZERO_FLAG) == false) {
+                deltaIp += i8(inst.data[0]);
+            }
+            break;
+        }
+        case InstType::JZ:
+        case InstType::JE:
+        {
+            Register& flags = getFlagsRegister(ctx);
+            if (isFlagSet(flags, Flags::CPU_FLAG_ZERO_FLAG) == true) {
+                deltaIp += i8(inst.data[0]);
+            }
+            break;
+        }
+        case InstType::JP:
+        case InstType::JPE:
+        {
+            Register& flags = getFlagsRegister(ctx);
+            if (isFlagSet(flags, Flags::CPU_FLAG_PARITY_FLAG) == true) {
+                deltaIp += i8(inst.data[0]);
+            }
+            break;
+        }
+        case InstType::JB:
+        case InstType::JNAE:
+        {
+            Register& flags = getFlagsRegister(ctx);
+            if (isFlagSet(flags, Flags::CPU_FLAG_CARRY_FLAG) == true) {
+                deltaIp += i8(inst.data[0]);
+            }
+            break;
+        }
+        case InstType::LOOPNZ:
+        case InstType::LOOPNE:
+        {
+            Register& cx = ctx.registers[i32(RegisterType::CX)];
+            cx.value--; // Decrement CX. NOTE: Interestingly, this should not set any flags!
+            Register& flags = getFlagsRegister(ctx);
+            if (cx.value != 0 && isFlagSet(flags, Flags::CPU_FLAG_ZERO_FLAG) == false) {
                 deltaIp += i8(inst.data[0]);
             }
             break;

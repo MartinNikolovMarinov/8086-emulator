@@ -17,7 +17,7 @@
                 // "-f", "${workspaceFolder}/build/test_01_from_01_to_05.asm.o",
 
                 // "-f", "${workspaceFolder}/build/my_examples/01_mov_segment_registers.asm.o",
-                "-f", "${workspaceFolder}/build/my_examples/02_low_and_hi_operations.asm.o",
+                // "-f", "${workspaceFolder}/build/my_examples/02_low_and_hi_operations.asm.o",
 
                 "-exec", "true",
                 "-verbose", "true",
@@ -27,7 +27,7 @@
                 // "-f", "${workspaceFolder}/build/09_carry_and_sign_flags.asm.o",
                 // "-f", "${workspaceFolder}/build/10_more_flags.asm.o",
                 // "-f", "${workspaceFolder}/build/11_ip_basic.asm.o",
-                // "-f", "${workspaceFolder}/build/12_ip_loop.asm.o",
+                "-f", "${workspaceFolder}/build/12_ip_loop.asm.o",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

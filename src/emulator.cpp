@@ -830,7 +830,74 @@ void emulateAdd(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
             carryFlag = dstHigh < highPart(original);
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(highPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstHigh);
-            auxCarryFlag = ((highPart(original) & 0x0F) + (srcVal & 0x0F)) > 0x0F;
+            auxCarryFlag = ((highPart(original) & 0x0F) + (srcVal & 0x0F)) > 0xF;
+            i32 setBitsCount = __builtin_popcount(highPart(next));
+            parityFlag = (setBitsCount & 0x1) == 0;
+        }
+
+    }
+
+    rdstReg.value = next;
+
+    setFlag(flags, CPU_FLAG_SIGN_FLAG, signFlag);
+    setFlag(flags, CPU_FLAG_ZERO_FLAG, zeroFlag);
+    setFlag(flags, CPU_FLAG_CARRY_FLAG, carryFlag);
+    setFlag(flags, CPU_FLAG_OVERFLOW_FLAG, overflowFlag);
+    setFlag(flags, CPU_FLAG_PARITY_FLAG, parityFlag);
+    setFlag(flags, CPU_FLAG_AUX_CARRY_FLAG, auxCarryFlag);
+}
+
+void emulateSub(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
+    bool signFlag, zeroFlag, carryFlag, overflowFlag, parityFlag, auxCarryFlag;
+    Register& rdstReg = *rdst.reg;
+    u16 original = rdstReg.value;
+    u16 next;
+
+    if (rdst.isWord) {
+        u16 src;
+        if (rsrc.isWord) {
+            src = combineWord(rsrc.low, rsrc.hi);
+        }
+        else {
+            i16 tmp = 0;
+            safeCastSignedInt(i8(rsrc.low), tmp);
+            src = u16(tmp);
+        }
+        next = rdstReg.value - src;
+        signFlag = i16(next) < 0;
+        zeroFlag = next == 0;
+        carryFlag = original < next;
+        overflowFlag = (isSignedBitSet(original) != isSignedBitSet(src)) &&
+                       (isSignedBitSet(original) != isSignedBitSet(next));
+        auxCarryFlag = ((original & 0xF) - (src & 0xF)) < 0;
+        i32 setBitsCount = __builtin_popcount(lowPart(next)); // FIXME: abstract this in corelib.
+        parityFlag = (setBitsCount & 0x1) == 0;
+    }
+    else {
+        u8 srcVal = rsrc.isLow ? rsrc.low : rsrc.hi;
+        if (rdst.isLowReg) {
+            u8 dstLow = lowPart(rdstReg.value);
+            dstLow -= srcVal;
+            next = combineWord(dstLow, highPart(rdstReg.value));
+            signFlag = i8(dstLow) < 0;
+            zeroFlag = dstLow == 0;
+            carryFlag = lowPart(original) < dstLow;
+            overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
+                           (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
+            auxCarryFlag = ((lowPart(original) & 0xF) - (srcVal & 0xF)) < 0;
+            i32 setBitsCount = __builtin_popcount(lowPart(next));
+            parityFlag = (setBitsCount & 0x1) == 0;
+        }
+        else {
+            u8 dstHigh = highPart(rdstReg.value);
+            dstHigh -= srcVal;
+            next = combineWord(lowPart(rdstReg.value), dstHigh);
+            signFlag = i8(dstHigh) < 0;
+            zeroFlag = dstHigh == 0;
+            carryFlag = highPart(original) < dstHigh;
+            overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
+                           (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
+            auxCarryFlag = ((highPart(original) & 0x0F) - (srcVal & 0x0F)) < 0;
             i32 setBitsCount = __builtin_popcount(highPart(next));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
@@ -972,8 +1039,9 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
 
     // Sanity checks:
     Assert(cmdType != EmulationCmdType::None, "Failed to set command type.");
-    Assert(cmdType == EmulationCmdType::Arithmetic && rdst.reg != nullptr,
-           "Failed to set destination register for arithmetic operation.");
+    if (cmdType == EmulationCmdType::Arithmetic) {
+        Assert(rdst.reg != nullptr, "Failed to set destination register for arithmetic operation.");
+    }
 
     u16 old = rdst.reg ? rdst.reg->value : 0;
     Register& ip = ctx.registers[i32(RegisterType::IP)];
@@ -987,10 +1055,10 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             emulateAdd(rdst, rsrc, getFlagsRegister(ctx));
             break;
         case InstType::SUB:
-            // emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            emulateSub(rdst, rsrc, getFlagsRegister(ctx));
             break;
         case InstType::CMP:
-            // emulateSub(*dst, getFlagsRegister(ctx), dstIsLow, isWord, srcLow, srcHigh, srcIsLow);
+            emulateSub(rdst, rsrc, getFlagsRegister(ctx));
             rdst.reg->value = old; // cmp is the same as sub, but doesn't write to dst
             break;
         case InstType::JNZ:
@@ -1008,6 +1076,8 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             break;
     }
 
+    u16 nextIp = ip.value + deltaIp + inst.byteCount;
+
     if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
         static i64 tmp_g_counter = 0;
 
@@ -1017,16 +1087,17 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             char flagsBuf[BUFFER_SIZE_FLAGS] = {};
             flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
             Register& dstReg = *rdst.reg;
-            fmt::print("({}) {}, {}:{:#0x}->{:#0x}, ip: {:#0x}, flags: {}\n",
+            fmt::print("({}) {}, {}:{:#0x}->{:#0x}, ip: {:#0x}->{:#0x}, flags: {}\n",
                         ++tmp_g_counter, instTypeToCptr(inst.type),
-                        regTypeToCptr(dstReg.type), old, dstReg.value, ip.value, flagsBuf);
+                        regTypeToCptr(dstReg.type), old, dstReg.value, ip.value, nextIp, flagsBuf);
         }
         else {
-            fmt::print("({}) {}, ip: {:#0x}\n", ++tmp_g_counter, instTypeToCptr(inst.type), ip.value);
+            fmt::print("({}) {}, ip: {:#0x}->{:#0x}\n",
+                      ++tmp_g_counter, instTypeToCptr(inst.type), ip.value, nextIp);
         }
     }
 
-    ip.value += deltaIp + inst.byteCount;
+    ip.value = nextIp;
 }
 
 bool nextInst(const EmulationContext& ctx, Instruction& inst) {

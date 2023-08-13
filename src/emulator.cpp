@@ -171,7 +171,6 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
                 default:
                     Panic(false, "[BUG] Failed to set instruction type");
             }
-
             break;
         }
 
@@ -307,6 +306,8 @@ Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
             break;
     }
 
+    Assert(inst.type != InstType::UNKNOWN, "Instruction unsupported yet.");
+
     return inst;
 }
 
@@ -318,52 +319,6 @@ void decodeAsm8086(core::arr<u8>& bytes, DecodingContext& ctx) {
         ctx.idx += inst.byteCount;
         ctx.instructions.append(inst);
     }
-}
-
-const char* instTypeToCptr(InstType t) {
-    switch (t) {
-        case InstType::MOV:      return "mov";
-        case InstType::ADD:      return "add";
-        case InstType::SUB:      return "sub";
-        case InstType::CMP:      return "cmp";
-        case InstType::JE:       return "je";
-        case InstType::JZ:       return "jz";
-        case InstType::JL:       return "jl";
-        case InstType::JNGE:     return "jnge";
-        case InstType::JLE:      return "jle";
-        case InstType::JNG:      return "jng";
-        case InstType::JB:       return "jb";
-        case InstType::JNAE:     return "jnae";
-        case InstType::JBE:      return "jbe";
-        case InstType::JNA:      return "jna";
-        case InstType::JP:       return "jp";
-        case InstType::JPE:      return "jpe";
-        case InstType::JO:       return "jo";
-        case InstType::JS:       return "js";
-        case InstType::JNE:      return "jne";
-        case InstType::JNZ:      return "jnz";
-        case InstType::JNL:      return "jnl";
-        case InstType::JGE:      return "jge";
-        case InstType::JNLE:     return "jnle";
-        case InstType::JG:       return "jg";
-        case InstType::JNB:      return "jnb";
-        case InstType::JAE:      return "jae";
-        case InstType::JNBE:     return "jnbe";
-        case InstType::JA:       return "ja";
-        case InstType::JNP:      return "jnp";
-        case InstType::JPO:      return "jpo";
-        case InstType::JNO:      return "jno";
-        case InstType::JNS:      return "jns";
-        case InstType::LOOP:     return "loop";
-        case InstType::LOOPE:    return "loope";
-        case InstType::LOOPZ:    return "loopz";
-        case InstType::LOOPNE:   return "loopne";
-        case InstType::LOOPNZ:   return "loopnz";
-        case InstType::JCXZ:     return "jcxz";
-        case InstType::UNKNOWN:  return "unknown";
-        case InstType::SENTINEL: break;
-    }
-    return "invalid";
 }
 
 namespace {
@@ -613,6 +568,52 @@ EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, Emula
     return ctx;
 }
 
+const char* instTypeToCptr(InstType t) {
+    switch (t) {
+        case InstType::MOV:      return "mov";
+        case InstType::ADD:      return "add";
+        case InstType::SUB:      return "sub";
+        case InstType::CMP:      return "cmp";
+        case InstType::JE:       return "je";
+        case InstType::JZ:       return "jz";
+        case InstType::JL:       return "jl";
+        case InstType::JNGE:     return "jnge";
+        case InstType::JLE:      return "jle";
+        case InstType::JNG:      return "jng";
+        case InstType::JB:       return "jb";
+        case InstType::JNAE:     return "jnae";
+        case InstType::JBE:      return "jbe";
+        case InstType::JNA:      return "jna";
+        case InstType::JP:       return "jp";
+        case InstType::JPE:      return "jpe";
+        case InstType::JO:       return "jo";
+        case InstType::JS:       return "js";
+        case InstType::JNE:      return "jne";
+        case InstType::JNZ:      return "jnz";
+        case InstType::JNL:      return "jnl";
+        case InstType::JGE:      return "jge";
+        case InstType::JNLE:     return "jnle";
+        case InstType::JG:       return "jg";
+        case InstType::JNB:      return "jnb";
+        case InstType::JAE:      return "jae";
+        case InstType::JNBE:     return "jnbe";
+        case InstType::JA:       return "ja";
+        case InstType::JNP:      return "jnp";
+        case InstType::JPO:      return "jpo";
+        case InstType::JNO:      return "jno";
+        case InstType::JNS:      return "jns";
+        case InstType::LOOP:     return "loop";
+        case InstType::LOOPE:    return "loope";
+        case InstType::LOOPZ:    return "loopz";
+        case InstType::LOOPNE:   return "loopne";
+        case InstType::LOOPNZ:   return "loopnz";
+        case InstType::JCXZ:     return "jcxz";
+        case InstType::UNKNOWN:  return "unknown";
+        case InstType::SENTINEL: break;
+    }
+    return "invalid";
+}
+
 const char* modeToCptr(Mod mod) {
     switch (mod) {
         case Mod::MEMORY_NO_DISPLACEMENT:               return "memory_no_displacement";
@@ -620,28 +621,29 @@ const char* modeToCptr(Mod mod) {
         case Mod::MEMORY_16_BIT_DISPLACEMENT:           return "memory_16_bit_displacement";
         case Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT: return "register_to_register_no_displacement";
         case Mod::NONE_SENTINEL:                        return "none";
-        default:                                        return "invalid mode";
     }
+    return "invalid mode";
 }
 
 const char* regTypeToCptr(const RegisterType& rtype) {
     switch (rtype) {
-        case RegisterType::AX:    return "ax";
-        case RegisterType::CX:    return "cx";
-        case RegisterType::DX:    return "dx";
-        case RegisterType::BX:    return "bx";
-        case RegisterType::SP:    return "sp";
-        case RegisterType::BP:    return "bp";
-        case RegisterType::SI:    return "si";
-        case RegisterType::DI:    return "di";
-        case RegisterType::ES:    return "es";
-        case RegisterType::CS:    return "cs";
-        case RegisterType::SS:    return "ss";
-        case RegisterType::DS:    return "ds";
-        case RegisterType::IP:    return "ip";
-        case RegisterType::FLAGS: return "flags";
-        default:                  return "invalid register";
+        case RegisterType::AX:       return "ax";
+        case RegisterType::CX:       return "cx";
+        case RegisterType::DX:       return "dx";
+        case RegisterType::BX:       return "bx";
+        case RegisterType::SP:       return "sp";
+        case RegisterType::BP:       return "bp";
+        case RegisterType::SI:       return "si";
+        case RegisterType::DI:       return "di";
+        case RegisterType::ES:       return "es";
+        case RegisterType::CS:       return "cs";
+        case RegisterType::SS:       return "ss";
+        case RegisterType::DS:       return "ds";
+        case RegisterType::IP:       return "ip";
+        case RegisterType::FLAGS:    return "flags";
+        case RegisterType::SENTINEL: break;
     }
+    return "invalid register";
 }
 
 const char* operandsToCptr(Operands o) {
@@ -665,8 +667,20 @@ const char* operandsToCptr(Operands o) {
         case Operands::Memory_SegReg:         return "memory_segreg";
 
         case Operands::None:                  return "none";
-        default:                              return "invalid operands";
+        case Operands::SENTINEL:              break;
     }
+    return "invalid operands";
+}
+
+char* flagsToCptr(Flags f, char* buffer) {
+    buffer[0] = '-';
+    if (f & CPU_FLAG_CARRY_FLAG)     *buffer++ = 'C';
+    if (f & CPU_FLAG_PARITY_FLAG)    *buffer++ = 'P';
+    if (f & CPU_FLAG_AUX_CARRY_FLAG) *buffer++ = 'A';
+    if (f & CPU_FLAG_ZERO_FLAG)      *buffer++ = 'Z';
+    if (f & CPU_FLAG_SIGN_FLAG)      *buffer++ = 'S';
+    if (f & CPU_FLAG_OVERFLOW_FLAG)  *buffer++ = 'O';
+    return buffer;
 }
 
 char* instructionToInfoCptr(const Instruction& inst, char* out) {
@@ -692,18 +706,72 @@ char* instructionToInfoCptr(const Instruction& inst, char* out) {
     return out;
 }
 
-char* flagsToCptr(Flags f, char* buffer) {
-    buffer[0] = '-';
-    if (f & CPU_FLAG_CARRY_FLAG)     *buffer++ = 'C';
-    if (f & CPU_FLAG_PARITY_FLAG)    *buffer++ = 'P';
-    if (f & CPU_FLAG_AUX_CARRY_FLAG) *buffer++ = 'A';
-    if (f & CPU_FLAG_ZERO_FLAG)      *buffer++ = 'Z';
-    if (f & CPU_FLAG_SIGN_FLAG)      *buffer++ = 'S';
-    if (f & CPU_FLAG_OVERFLOW_FLAG)  *buffer++ = 'O';
-    return buffer;
-}
-
 namespace {
+
+enum struct InstClassification : u8 {
+    None,
+    DataTransfer,
+    Arithmentic,
+    Logical,
+    StringManipulation,
+    ControlTransfer,
+    ProcessorControl,
+
+    SENTINEL
+};
+
+InstClassification getClassification(InstType itype) {
+    switch (itype) {
+        case InstType::MOV:
+            return InstClassification::DataTransfer;
+
+        case InstType::CMP: [[fallthrough]];
+        case InstType::SUB: [[fallthrough]];
+        case InstType::ADD:
+            return InstClassification::Arithmentic;
+
+        case InstType::JE:     [[fallthrough]];
+        case InstType::JZ:     [[fallthrough]];
+        case InstType::JL:     [[fallthrough]];
+        case InstType::JNGE:   [[fallthrough]];
+        case InstType::JLE:    [[fallthrough]];
+        case InstType::JNG:    [[fallthrough]];
+        case InstType::JB:     [[fallthrough]];
+        case InstType::JNAE:   [[fallthrough]];
+        case InstType::JBE:    [[fallthrough]];
+        case InstType::JNA:    [[fallthrough]];
+        case InstType::JP:     [[fallthrough]];
+        case InstType::JPE:    [[fallthrough]];
+        case InstType::JO:     [[fallthrough]];
+        case InstType::JS:     [[fallthrough]];
+        case InstType::JNE:    [[fallthrough]];
+        case InstType::JNZ:    [[fallthrough]];
+        case InstType::JNL:    [[fallthrough]];
+        case InstType::JGE:    [[fallthrough]];
+        case InstType::JNLE:   [[fallthrough]];
+        case InstType::JG:     [[fallthrough]];
+        case InstType::JNB:    [[fallthrough]];
+        case InstType::JAE:    [[fallthrough]];
+        case InstType::JNBE:   [[fallthrough]];
+        case InstType::JA:     [[fallthrough]];
+        case InstType::JNP:    [[fallthrough]];
+        case InstType::JPO:    [[fallthrough]];
+        case InstType::JNO:    [[fallthrough]];
+        case InstType::JNS:    [[fallthrough]];
+        case InstType::LOOP:   [[fallthrough]];
+        case InstType::LOOPE:  [[fallthrough]];
+        case InstType::LOOPZ:  [[fallthrough]];
+        case InstType::LOOPNE: [[fallthrough]];
+        case InstType::LOOPNZ: [[fallthrough]];
+        case InstType::JCXZ:
+            return InstClassification::ControlTransfer;
+
+        case InstType::UNKNOWN:  [[fallthrough]];
+        case InstType::SENTINEL: break;
+    }
+
+    return InstClassification::None;
+}
 
 constexpr inline void setFlag(Register& flags, Flags flag, bool value) {
     flags.value = value ? (flags.value | flag) : (flags.value & ~flag);
@@ -915,16 +983,9 @@ void emulateSub(RegisterDest& rdst, RegisterSource& rsrc, Register& flags) {
 }
 
 void emulateNext(EmulationContext& ctx, const Instruction& inst) {
-    enum struct EmulationCmdType : u8 {
-        None,
-        Arithmetic,
-        ConditionalJmp
-    };
-
     RegisterDest rdst = {};
     rdst.isWord = (inst.w == 1);
     RegisterSource rsrc = {};
-    EmulationCmdType cmdType = EmulationCmdType::None;
 
     switch (inst.operands) {
         case Operands::Register_Immediate:
@@ -937,7 +998,6 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             rsrc.hi = inst.data[1];
             rsrc.isLow = true;
             rsrc.isWord = inst.s ? false : (inst.w == 1);
-            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::Register_Register:
@@ -951,7 +1011,6 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             rsrc.hi = highPart(src->value);
             rsrc.isLow = isLowRegister(inst.reg);
             rsrc.isWord = rdst.isWord;
-            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::Register16_SegReg:
@@ -966,7 +1025,6 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             rsrc.hi = highPart(src->value);
             rsrc.isLow = true;
             rsrc.isWord = true;
-            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
         case Operands::SegReg_Register16:
@@ -981,23 +1039,30 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             rsrc.hi = highPart(src->value);
             rsrc.isLow = true;
             rsrc.isWord = true;
-            cmdType = EmulationCmdType::Arithmetic;
             break;
         }
-        case Operands::ShortLabel:
-        {
-            cmdType = EmulationCmdType::ConditionalJmp;
-            break;
-        }
-        default:
-            Panic(false, "Instruction not supported yet.");
-            break;
+        case Operands::ShortLabel: break; // nothing to do
+
+        case Operands::Accumulator_Immediate:      [[fallthrough]];
+        case Operands::SegReg_Memory16:            [[fallthrough]];
+        case Operands::Register_Memory:            [[fallthrough]];
+        case Operands::Accumulator_Memory:         [[fallthrough]];
+        case Operands::Memory_Register:            [[fallthrough]];
+        case Operands::Memory_Immediate:           [[fallthrough]];
+        case Operands::Memory_SegReg:              [[fallthrough]];
+        case Operands::Memory_Accumulator:         [[fallthrough]];
+        case Operands::None:                       [[fallthrough]];
+        case Operands::SENTINEL:                   Assert(false, "Unsupported instruction operands."); return;
     }
 
+    InstClassification cmdType = getClassification(inst.type);
+
     // Sanity checks:
-    Assert(cmdType != EmulationCmdType::None, "Failed to set command type.");
-    if (cmdType == EmulationCmdType::Arithmetic) {
-        Assert(rdst.reg != nullptr, "Failed to set destination register for arithmetic operation.");
+    Assert(cmdType != InstClassification::None, "Failed to set command type.");
+    if (cmdType == InstClassification::Arithmentic ||
+        cmdType == InstClassification::DataTransfer ||
+        cmdType == InstClassification::Logical) {
+        Assert(rdst.reg != nullptr, "Failed to set destination register for operation that needs it.");
     }
 
     u16 old = rdst.reg ? rdst.reg->value : 0;
@@ -1066,9 +1131,33 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             }
             break;
         }
-        default:
-            Panic(false, "Instruction not supported yet.");
-            break;
+
+        case InstType::JL:       [[fallthrough]];
+        case InstType::JNGE:     [[fallthrough]];
+        case InstType::JLE:      [[fallthrough]];
+        case InstType::JNG:      [[fallthrough]];
+        case InstType::JBE:      [[fallthrough]];
+        case InstType::JNA:      [[fallthrough]];
+        case InstType::JO:       [[fallthrough]];
+        case InstType::JS:       [[fallthrough]];
+        case InstType::JNL:      [[fallthrough]];
+        case InstType::JGE:      [[fallthrough]];
+        case InstType::JNLE:     [[fallthrough]];
+        case InstType::JG:       [[fallthrough]];
+        case InstType::JNB:      [[fallthrough]];
+        case InstType::JAE:      [[fallthrough]];
+        case InstType::JNBE:     [[fallthrough]];
+        case InstType::JA:       [[fallthrough]];
+        case InstType::JNP:      [[fallthrough]];
+        case InstType::JPO:      [[fallthrough]];
+        case InstType::JNO:      [[fallthrough]];
+        case InstType::JNS:      [[fallthrough]];
+        case InstType::LOOP:     [[fallthrough]];
+        case InstType::LOOPE:    [[fallthrough]];
+        case InstType::LOOPZ:    [[fallthrough]];
+        case InstType::JCXZ:     [[fallthrough]];
+        case InstType::SENTINEL: [[fallthrough]];
+        case InstType::UNKNOWN:  Assert(false, "Instruction not supported yet."); return;
     }
 
     u16 nextIp = ip.value + deltaIp + inst.byteCount;
@@ -1078,7 +1167,10 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
 
         // TODO: I can encode the full instructions here, on debug print.
         // Print arithmetic operations:
-        if (cmdType == EmulationCmdType::Arithmetic) {
+        if (cmdType == InstClassification::Arithmentic ||
+            cmdType == InstClassification::DataTransfer ||
+            cmdType == InstClassification::Logical
+        ) {
             char flagsBuf[BUFFER_SIZE_FLAGS] = {};
             flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
             Register& dstReg = *rdst.reg;

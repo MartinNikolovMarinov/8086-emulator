@@ -31,6 +31,7 @@ struct command_line_args {
     i32 fileNameLen = 0;
     bool execFlag = false;
     bool verboseFlag = false;
+    i32 immValuesFmt = 0;
 };
 
 command_line_args initCore(i32 argc, const char** argv);

@@ -19,8 +19,15 @@ const char* std_allocator_static::allocator_name() noexcept {
 }
 
 void printUsage() {
-    fmt::print("Usage:\n");
-    fmt::print("  -f, --file \t\t the binary file to use.\n");
+    fmt::print(fmt::emphasis::bold, "Usage:\n");
+    fmt::print("  -f (required)       the binary file to use.\n");
+    fmt::print("  --exec              emulate the execution.\n");
+    fmt::print("  --verbose           print verbose information.\n");
+    fmt::print("  --imm-values-fmt    the format to use when printing immediate values.\n");
+    fmt::print("                      0 - is the default.\n");
+    fmt::print("                      1 - use hex format.\n");
+    fmt::print("                      2 - use signed format.\n");
+    fmt::print("                      3 - use unsigned format.\n");
 }
 
 command_line_args initCore(i32 argc, const char** argv) {
@@ -39,19 +46,26 @@ command_line_args initCore(i32 argc, const char** argv) {
 
     // Parse the command line arguments.
     command_line_args cmdLineArgs = {};
+    bool argsAreOk = false;
     if (argc > 1) {
         core::flag_parser parser;
         parser.allowUnknownFlags = true;
         parser.flag(&cmdLineArgs.fileName, "f", true);
         parser.flag(&cmdLineArgs.execFlag, "exec", false);
         parser.flag(&cmdLineArgs.verboseFlag, "verbose", false);
+        parser.flag(&cmdLineArgs.immValuesFmt, "imm-values-fmt", false, [](void* a) -> bool {
+            u32 v = *(u32*)a;
+            return (v <= 3);
+        });
 
         auto res = parser.parse(argc - 1, argv + 1);
-        if (res.has_err()) {
-            fmt::print(fg(fmt::color::red) | fmt::emphasis::bold, "Invalid command line argument.\n\n");
-            printUsage();
-            core::os_exit(-1);
-        }
+        argsAreOk = !res.has_err();
+    }
+
+    if (!argsAreOk) {
+        fmt::print(fg(fmt::color::red) | fmt::emphasis::bold, "Invalid arguments.\n\n");
+        printUsage();
+        core::os_exit(-1);
     }
 
     return cmdLineArgs;

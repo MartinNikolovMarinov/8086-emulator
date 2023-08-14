@@ -330,7 +330,7 @@ void appendU16toSb(core::str_builder<>& sb, u16 i) {
 }
 GUARD_FN_TYPE_DEDUCTION(appendU16toSb);
 
-void appendImmFromLowAndHigh(core::str_builder<>& sb, const DecodingContext& ctx, bool explictSign, u8 low, u8 high) {
+void appendImmFromLowAndHigh(core::str_builder<>& sb, DecodingOpts decodingOpts, bool explictSign, u8 low, u8 high) {
     auto appendSigned = [](core::str_builder<>& sb, auto i, bool explictSign) {
         if (i < 0) {
             if (explictSign) sb.append("- ");
@@ -347,15 +347,15 @@ void appendImmFromLowAndHigh(core::str_builder<>& sb, const DecodingContext& ctx
 
     };
 
-    if (ctx.options & DEC_OP_IMMEDIATE_AS_SIGNED) {
+    if (decodingOpts & DEC_OP_IMMEDIATE_AS_SIGNED) {
         if (high != 0) appendSigned(sb, i16(combineWord(low, high)), explictSign);
         else appendSigned(sb, i8(low), explictSign);
     }
-    else if (ctx.options & DEC_OP_IMMEDIATE_AS_UNSIGNED) {
+    else if (decodingOpts & DEC_OP_IMMEDIATE_AS_UNSIGNED) {
         if (explictSign) sb.append("+ ");
         appendU16toSb(sb, combineWord(low, high));
     }
-    else if (ctx.options & DEC_OP_IMMEDIATE_AS_HEX) {
+    else if (decodingOpts & DEC_OP_IMMEDIATE_AS_HEX) {
         char ncptr[5] = {};
         core::int_to_hex(combineWord(low, high), ncptr);
         if (explictSign) sb.append("+ ");
@@ -387,24 +387,24 @@ void appendReg(core::str_builder<>& sb, u8 reg, bool isWord, bool isSegment = fa
     }
 }
 
-void appendRegDisp(core::str_builder<>& sb, const DecodingContext& ctx, u8 reg, u8 dispLow, u8 dispHigh) {
+void appendRegDisp(core::str_builder<>& sb, DecodingOpts decodingOpts, u8 reg, u8 dispLow, u8 dispHigh) {
     sb.append(regDispTable[reg]);
     if (dispLow != 0 || dispHigh != 0) {
         sb.append(" ");
-        appendImmFromLowAndHigh(sb, ctx, true, dispLow, dispHigh);
+        appendImmFromLowAndHigh(sb, decodingOpts, true, dispLow, dispHigh);
     }
 }
 
-void appendMemory(core::str_builder<>& sb, const DecodingContext& ctx,
+void appendMemory(core::str_builder<>& sb, DecodingOpts decodingOpts,
                  u8 rm, u8 dispLow, u8 dispHigh, bool isWord, bool isCalc, bool isDirect) {
     if (isDirect) {
         sb.append("[");
-        appendImmFromLowAndHigh(sb, ctx, false, dispLow, dispHigh);
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dispLow, dispHigh);
         sb.append("]");
     }
     else if (isCalc) {
         sb.append("[");
-        appendRegDisp(sb, ctx, rm, dispLow, dispHigh);
+        appendRegDisp(sb, decodingOpts, rm, dispLow, dispHigh);
         sb.append("]");
     }
     else {
@@ -412,10 +412,7 @@ void appendMemory(core::str_builder<>& sb, const DecodingContext& ctx,
     }
 }
 
-void encodeInstruction(core::str_builder<>& sb,
-                       const DecodingContext& ctx,
-                       const Instruction& inst,
-                       addr_size byteIdx) {
+void encodeBasicInstruction(core::str_builder<>& sb, const Instruction& inst, DecodingOpts decodingOpts) {
     u8 d = inst.d;
     u8 w = inst.w;
     u8 reg = inst.reg;
@@ -429,18 +426,17 @@ void encodeInstruction(core::str_builder<>& sb,
     bool isCalc = isEffectiveAddrCalc(mod);
     bool isDirect = isDirectAddrMode(mod, rm);
     bool dispIsWord = isDirect ? true : is16bitDisplacement(mod);
-    auto& jmpLabels = ctx.jmpLabels;
 
     auto appendToRegFromImm = [&](u8 dstReg, bool dstIsWord) {
         appendReg(sb, dstReg, dstIsWord, false);
         sb.append(", ");
-        appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
     };
     auto appendToMemFromImm = [&](u8 dstMem, bool immIsWord) {
         sb.append(immIsWord ? "word " : "byte ");
-        appendMemory(sb, ctx, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
+        appendMemory(sb, decodingOpts, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
         sb.append(", ");
-        appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
     };
     auto appendToRegFromReg = [&](u8 dstReg, bool dstIsSegment,
                                 u8 srcReg, bool srcIsSegment, bool areWordRegs) {
@@ -449,19 +445,19 @@ void encodeInstruction(core::str_builder<>& sb,
         appendReg(sb, srcReg, areWordRegs, srcIsSegment);
     };
     auto appendToRegFromMem = [&](u8 dstMem, u8 srcReg, bool srcIsSegment, bool srcIsWord) {
-        appendMemory(sb, ctx, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
+        appendMemory(sb, decodingOpts, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
         sb.append(", ");
         appendReg(sb, srcReg, srcIsWord, srcIsSegment);
     };
     auto appendToMemFromReg = [&](u8 dstReg, bool dstIsSegment, bool dstIsWord, u8 srcMem) {
         appendReg(sb, dstReg, dstIsWord, dstIsSegment);
         sb.append(", ");
-        appendMemory(sb, ctx, srcMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
+        appendMemory(sb, decodingOpts, srcMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
     };
     auto appendMemAcc = [&](bool accRegIsWord, u8 d) {
         if (d) {
             sb.append("[");
-            appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
+            appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
             sb.append("]");
             sb.append(", ");
             appendReg(sb, 0b000, accRegIsWord);
@@ -470,31 +466,17 @@ void encodeInstruction(core::str_builder<>& sb,
             appendReg(sb, 0b000, accRegIsWord);
             sb.append(", ");
             sb.append("[");
-            appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
+            appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
             sb.append("]");
         }
     };
     auto appendToAccFromImm = [&](bool accRegIsWord) {
         appendReg(sb, 0b000, accRegIsWord, false);
         sb.append(", ");
-        appendImmFromLowAndHigh(sb, ctx, false, dataLow, dataHigh);
-    };
-    auto appendShortLabel = [&]() {
-        i8 shotJmpOffset = i8(dataLow);
-        addr_off byteOff = addr_off(byteIdx) + shotJmpOffset;
-        i64 jmpidx = core::find(jmpLabels, [&](auto& el, addr_off) -> bool { return el.byteOffset == byteOff; });
-        if (jmpidx == -1) {
-            sb.append("(failed to decode label)");
-        }
-        else {
-            sb.append("label_");
-            // TODO: I should makeup my mind on how long a jump is allowed. Is there a point to use 64 bit numbers, if yes,
-            //       then there should be a function to append them.
-            appendU16toSb(sb, u16(jmpLabels[jmpidx].labelIdx));
-        }
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
     };
 
-    // Encode instruction name:
+    // Encode the instruction name:
     sb.append(instTypeToCptr(inst.type));
     sb.append(" ");
 
@@ -516,6 +498,52 @@ void encodeInstruction(core::str_builder<>& sb,
         case Operands::SegReg_Memory16:       appendToRegFromMem(rm, reg, true, true); break;
         case Operands::Memory_SegReg:         appendToMemFromReg(reg, true, true, rm); break;
 
+        default:                              sb.append("(encoding failed)"); break;
+    }
+}
+
+void encodeInstruction(core::str_builder<>& sb,
+                       const DecodingContext& ctx,
+                       const Instruction& inst,
+                       addr_size byteIdx) {
+    auto appendShortLabel = [&]() {
+        sb.append(instTypeToCptr(inst.type));
+        sb.append(" ");
+
+        u8 dataLow = inst.data[0];
+        auto& jmpLabels = ctx.jmpLabels;
+        i8 shotJmpOffset = i8(dataLow);
+        addr_off byteOff = addr_off(byteIdx) + shotJmpOffset;
+        i64 jmpidx = core::find(jmpLabels, [&](auto& el, addr_off) -> bool { return el.byteOffset == byteOff; });
+        if (jmpidx == -1) {
+            sb.append("(failed to decode label)");
+        }
+        else {
+            sb.append("label_");
+            appendU16toSb(sb, u16(jmpLabels[jmpidx].labelIdx));
+        }
+    };
+
+    switch (inst.operands) {
+        // Basic Instructions:
+        case Operands::Accumulator_Memory:    [[fallthrough]];
+        case Operands::Accumulator_Immediate: [[fallthrough]];
+
+        case Operands::Memory_Accumulator:    [[fallthrough]];
+        case Operands::Memory_Immediate:      [[fallthrough]];
+        case Operands::Memory_Register:       [[fallthrough]];
+
+        case Operands::Register_Register:     [[fallthrough]];
+        case Operands::Register_Memory:       [[fallthrough]];
+        case Operands::Register_Immediate:    [[fallthrough]];
+
+        case Operands::SegReg_Register16:     [[fallthrough]];
+        case Operands::Register16_SegReg:     [[fallthrough]];
+
+        case Operands::SegReg_Memory16:       [[fallthrough]];
+        case Operands::Memory_SegReg:         encodeBasicInstruction(sb, inst, ctx.options); break;
+
+        // Control Transfer Instructions require more context for encoding:
         case Operands::ShortLabel:            appendShortLabel(); break;
 
         case Operands::SENTINEL:              sb.append("(encoding failed)"); break;
@@ -558,7 +586,7 @@ void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
 EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOpts options) {
     EmulationContext ctx;
     ctx.instructions = core::move(instructions);
-    ctx.options = options;
+    ctx.emuOpts = options;
     core::memset(ctx.memory, 0, EmulationContext::MEMORY_SIZE);
     for (addr_size i = 0; i < addr_size(RegisterType::SENTINEL); i++) {
         auto& reg = ctx.registers[i];
@@ -1086,7 +1114,6 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
         case InstType::JNZ:
         case InstType::JNE:
         {
-            // TODO: I should write a function for this, once I write a bit more jmp types and know how to abstract it.
             Register& flags = getFlagsRegister(ctx);
             if (isFlagSet(flags, Flags::CPU_FLAG_ZERO_FLAG) == false) {
                 deltaIp += i8(inst.data[0]);
@@ -1162,24 +1189,28 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
 
     u16 nextIp = ip.value + deltaIp + inst.byteCount;
 
-    if (ctx.options & EmulationOpts::EMU_OPT_VERBOSE) {
+    if (ctx.emuOpts & EmulationOpts::EMU_OPT_VERBOSE) {
         static i64 tmp_g_counter = 0;
 
-        // TODO: I can encode the full instructions here, on debug print.
-        // Print arithmetic operations:
         if (cmdType == InstClassification::Arithmentic ||
             cmdType == InstClassification::DataTransfer ||
             cmdType == InstClassification::Logical
         ) {
+            Register& dstReg = *rdst.reg;
+
+            core::str_builder<> sb;
+            encodeBasicInstruction(sb, inst, ctx.decodingOpts);
+            const char* encodedInst = sb.view().buff;
+
             char flagsBuf[BUFFER_SIZE_FLAGS] = {};
             flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
-            Register& dstReg = *rdst.reg;
-            fmt::print("({}) {}, {}:{:#0x}->{:#0x}, ip: {:#0x}->{:#0x}, flags: {}\n",
-                        ++tmp_g_counter, instTypeToCptr(inst.type),
+
+            fmt::print("({}) {} ; {}:{:#0x}->{:#0x}, ip: {:#0x}->{:#0x}, flags: {}\n",
+                        ++tmp_g_counter, encodedInst,
                         regTypeToCptr(dstReg.type), old, dstReg.value, ip.value, nextIp, flagsBuf);
         }
         else {
-            fmt::print("({}) {}, ip: {:#0x}->{:#0x}\n",
+            fmt::print("({}) {} -> ip: {:#0x}->{:#0x}\n",
                       ++tmp_g_counter, instTypeToCptr(inst.type), ip.value, nextIp);
         }
     }

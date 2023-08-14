@@ -186,7 +186,8 @@ enum EmulationOpts : u32 {
 
 struct EmulationContext {
     constexpr static addr_size MEMORY_SIZE = core::MEGABYTE;
-    EmulationOpts options;
+    EmulationOpts emuOpts = EMU_OPT_NONE;
+    DecodingOpts decodingOpts = DEC_OP_NONE;
     core::arr<Instruction> instructions;
     Register registers[i32(RegisterType::SENTINEL)];
     u8 memory[MEMORY_SIZE];

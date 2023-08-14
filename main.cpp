@@ -71,7 +71,7 @@ i32 main(i32 argc, char const** argv) {
     if (g_cmdLineArgs.execFlag) {
         EmulationContext emuCtx = createEmulationCtx(core::move(ctx.instructions));
         if (g_cmdLineArgs.verboseFlag) {
-            emuCtx.options = EmulationOpts(emuCtx.options | EmulationOpts::EMU_OPT_VERBOSE);
+            emuCtx.emuOpts = EmulationOpts(emuCtx.emuOpts | EmulationOpts::EMU_OPT_VERBOSE);
         }
         if (g_cmdLineArgs.verboseFlag) fmt::print("\n");
         emulate(emuCtx);

@@ -74,6 +74,9 @@ i32 main(i32 argc, char const** argv) {
         fmt::print("bits 16\n\n");
         fmt::print("{}", sb.view().buff);
     }
+
+    sb.clear();
+
     if (g_cmdLineArgs.execFlag) {
         EmulationContext emuCtx = createEmulationCtx(core::move(ctx.instructions));
         emuCtx.__verbosecity_buff = core::move(sb);

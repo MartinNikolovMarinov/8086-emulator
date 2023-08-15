@@ -97,7 +97,6 @@ Opcode opcodeDecode(u8 opcodeByte) {
 
     // Check 5 bit opcodes:
     opcodeByte = opcodeByte >> 1;
-    // TODO: Don't forget to add a switch for 5 bit opcodes, when support is added for any of them.
 
     // Check 4 bit opcodes:
     opcodeByte = opcodeByte >> 1;

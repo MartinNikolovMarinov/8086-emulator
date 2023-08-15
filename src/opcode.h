@@ -85,6 +85,8 @@
  *   operand and/or the actual value of an immediate constant operand.
 */
 
+// TODO: Parse all 8086 instructions.
+
 namespace asm8086 {
 
 // Enumeration for all instruction opcodes. From Table 4-12. 8086/8088 Instruction Set.

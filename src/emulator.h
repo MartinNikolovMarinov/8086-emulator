@@ -52,14 +52,14 @@ enum struct Operands : u8 {
     None,
 
     Memory_Accumulator,
-    Memory_Register,
+    Memory_Register, // FIXME: This might be switched around with Register_Memory ?
     Memory_Immediate,
 
     Register_Register,
     Register_Memory,
     Register_Immediate,
 
-    Accumulator_Memory,
+    Accumulator_Memory, // FIXME: This might be switched around with Memory_Accumulator ?
     Accumulator_Immediate,
 
     ShortLabel,

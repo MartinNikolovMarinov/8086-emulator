@@ -844,6 +844,92 @@ Register& getFlagsRegister(EmulationContext& ctx) {
     return ctx.registers[i32(RegisterType::FLAGS)];
 }
 
+addr_off calcMemoryAddress(const EmulationContext& ctx, const Instruction& inst) {
+    bool isDirect = isDirectAddrMode(inst.mod, inst.rm);
+    u8 dispLow = inst.disp[0];
+    u8 dispHi = inst.disp[1];
+    addr_off addr = 0;
+
+    if (!isDirect) {
+        switch (inst.rm) {
+            case 0b000:
+            {
+                // [BX + SI]
+                i16 bx = ctx.registers[i32(RegisterType::BX)].value;
+                i16 si = ctx.registers[i32(RegisterType::SI)].value;
+                addr += bx + si;
+                break;
+            }
+            case 0b001:
+            {
+                // [BX + DI]
+                i16 bx = ctx.registers[i32(RegisterType::BX)].value;
+                i16 di = ctx.registers[i32(RegisterType::DI)].value;
+                addr += bx + di;
+                break;
+            }
+            case 0b010:
+            {
+                // [BP + SI]
+                i16 bp = ctx.registers[i32(RegisterType::BP)].value;
+                i16 si = ctx.registers[i32(RegisterType::SI)].value;
+                addr += bp + si;
+                break;
+            }
+            case 0b011:
+            {
+                // [BP + DI]
+                i16 bp = ctx.registers[i32(RegisterType::BP)].value;
+                i16 di = ctx.registers[i32(RegisterType::DI)].value;
+                addr += bp + di;
+                break;
+            }
+            case 0b100:
+            {
+                // [SI]
+                i16 si = ctx.registers[i32(RegisterType::SI)].value;
+                addr += si;
+                break;
+            }
+            case 0b101:
+            {
+                // [DI]
+                i16 di = ctx.registers[i32(RegisterType::DI)].value;
+                addr += di;
+                break;
+            }
+            case 0b110:
+            {
+                // [BP]
+                i16 bp = ctx.registers[i32(RegisterType::BP)].value;
+                addr += bp;
+                break;
+            }
+            case 0b111:
+            {
+                // [BX]
+                i16 bx = ctx.registers[i32(RegisterType::BX)].value;
+                addr += bx;
+                break;
+            }
+        }
+    }
+
+    if (is8bitDisplacement(inst.mod)) {
+        // [... + disp8]
+        addr += i8(dispLow);
+    }
+    else if (is16bitDisplacement(inst.mod) || isDirect) {
+        // [... + disp16]
+        i16 disp16 = combineWord(dispLow, dispHi);
+        addr += disp16;
+    }
+
+    // User bug:
+    Panic(addr >= 0 && addr_size(addr) < EmulationContext::MEMORY_SIZE - 1, "Indexing memory out of bounds.");
+    return addr;
+}
+
 struct Dest {
     bool isWord;
     bool isLow;
@@ -1074,16 +1160,66 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             src.isWord = true;
             break;
         }
+
+        case Operands::Memory_Register:
+        {
+            // Set destination
+            destRegister = getRegister(ctx, inst.reg, dst.isWord, false);
+            dst.target = &destRegister->value;
+            dst.isLow = isLowRegister(inst.reg);
+            // Set source
+            addr_off effectiveAddr = calcMemoryAddress(ctx, inst);
+            u16* srcMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            src.low = *(u8*)srcMemoryAddress;
+            src.hi = *((u8*)(srcMemoryAddress) + 1);
+            src.isLow = true;
+            src.isWord = inst.s ? false : (inst.w == 1);
+            break;
+        }
+
+        case Operands::Register_Memory: {
+            // Set destination
+            addr_off effectiveAddr = calcMemoryAddress(ctx, inst);
+            destMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            dst.target = destMemoryAddress;
+            dst.isLow = dst.isWord;
+            // Set source
+            Register* rsrc = getRegister(ctx, inst.reg, true, false);
+            src.low = lowPart(rsrc->value);
+            src.hi = highPart(rsrc->value);
+            src.isLow = true;
+            src.isWord = true;
+            break;
+        }
+
+        case Operands::Memory_Immediate: {
+            // Set destination
+            addr_off effectiveAddr = calcMemoryAddress(ctx, inst);
+            destMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            dst.target = destMemoryAddress;
+            dst.isLow = dst.isWord;
+            // Set source
+            src.isWord = inst.s ? false : (inst.w == 1);
+            src.low = inst.data[0];
+            src.hi = inst.data[1];
+            if (!src.isWord) {
+                // This handles targetting the exact byte in memory when the instruction is a byte sized.
+                src.hi = src.low;
+                dst.isLow = true;
+                src.isLow = false;
+            }
+            break;
+        };
+
         case Operands::ShortLabel: break; // nothing to do
 
+        // TODO: These 3 are the last ones that I will implement for now
         case Operands::Accumulator_Immediate:      [[fallthrough]];
-        case Operands::SegReg_Memory16:            [[fallthrough]];
-        case Operands::Register_Memory:            [[fallthrough]];
         case Operands::Accumulator_Memory:         [[fallthrough]];
-        case Operands::Memory_Register:            [[fallthrough]];
-        case Operands::Memory_Immediate:           [[fallthrough]];
-        case Operands::Memory_SegReg:              [[fallthrough]];
         case Operands::Memory_Accumulator:         [[fallthrough]];
+
+        case Operands::SegReg_Memory16:            [[fallthrough]];
+        case Operands::Memory_SegReg:              [[fallthrough]];
         case Operands::None:                       [[fallthrough]];
         case Operands::SENTINEL:                   Assert(false, "Unsupported instruction operands."); return;
     }
@@ -1196,25 +1332,32 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
     if (ctx.emuOpts & EmulationOpts::EMU_OPT_VERBOSE) {
         static i64 tmp_g_counter = 0;
 
-        if (destRegister) {
+        char flagsBuf[BUFFER_SIZE_FLAGS] = {};
+        flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
+
+        if (destRegister || destMemoryAddress) {
             auto& sb = ctx.__verbosecity_buff; sb.clear();
             encodeBasicInstruction(sb, inst, ctx.decodingOpts);
             const char* encodedInst = sb.view().buff;
 
-            char flagsBuf[BUFFER_SIZE_FLAGS] = {};
-            flagsToCptr(Flags(getFlagsRegister(ctx).value), flagsBuf);
-
             fmt::print(fmt::emphasis::bold, "({}) {}", ++tmp_g_counter, encodedInst);
-            fmt::print(" ; {}:{:#0x}->{:#0x}, ip: {:#0x}->{:#0x}, flags: {}",
-                       regTypeToCptr(destRegister->type), old, destRegister->value, ip.value, nextIp, flagsBuf);
+
+            if (destRegister) {
+                constexpr const char* fmtCptr = " ; {}: {:#0x}->{:#0x}, ip: {:#0x}->{:#0x}, flags: {}";
+                const char* rtype = regTypeToCptr(destRegister->type);
+                fmt::print(fmtCptr, rtype, old, destRegister->value, ip.value, nextIp, flagsBuf);
+            }
+            else if (destMemoryAddress) {
+                constexpr const char* fmtCptr = " ; [{:#06x}]: {:#0x}->{:#0x}, ip: {:#0x}->{:#0x}, flags: {}";
+                addr_off targetAddrOff = addr_off(reinterpret_cast<u8*>(destMemoryAddress) - ctx.memory);
+                fmt::print(fmtCptr, targetAddrOff, old, *destMemoryAddress, ip.value, nextIp, flagsBuf);
+            }
+
             fmt::print("\n");
-        }
-        else if (destMemoryAddress) {
-            // FIXME: Print something for memory writes
         }
         else {
             fmt::print(fmt::emphasis::bold, "({}) {}", ++tmp_g_counter, instTypeToCptr(inst.type));
-            fmt::print(" -> ip: {:#0x}->{:#0x}", ip.value, nextIp);
+            fmt::print(" -> ip: {:#0x}->{:#0x}, flags: {}", ip.value, nextIp, flagsBuf);
             fmt::print("\n");
         }
     }

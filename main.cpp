@@ -61,7 +61,7 @@ i32 main(i32 argc, char const** argv) {
 
     DecodingContext ctx = {};
     switch (g_cmdLineArgs.immValuesFmt) {
-        case 1: ctx.options = DecodingOpts(ctx.options | DecodingOpts::DEC_OP_IMMEDIATE_AS_HEX); break;
+        case 1: ctx.options = DecodingOpts(ctx.options | DEC_OP_IMMEDIATE_AS_HEX); break;
         case 2: ctx.options = DecodingOpts(ctx.options | DEC_OP_IMMEDIATE_AS_SIGNED); break;
         case 3: ctx.options = DecodingOpts(ctx.options | DEC_OP_IMMEDIATE_AS_UNSIGNED); break;
     }
@@ -76,6 +76,7 @@ i32 main(i32 argc, char const** argv) {
     }
     if (g_cmdLineArgs.execFlag) {
         EmulationContext emuCtx = createEmulationCtx(core::move(ctx.instructions));
+        emuCtx.__verbosecity_buff = core::move(sb);
         if (g_cmdLineArgs.verboseFlag) {
             emuCtx.emuOpts = EmulationOpts(emuCtx.emuOpts | EmulationOpts::EMU_OPT_VERBOSE);
         }

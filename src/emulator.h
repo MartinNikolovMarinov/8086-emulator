@@ -191,6 +191,8 @@ struct EmulationContext {
     core::arr<Instruction> instructions;
     Register registers[i32(RegisterType::SENTINEL)];
     u8 memory[MEMORY_SIZE];
+
+    core::str_builder<> __verbosecity_buff;
 };
 
 EmulationContext createEmulationCtx(core::arr<Instruction>&& instructions, EmulationOpts options = EMU_OPT_NONE);

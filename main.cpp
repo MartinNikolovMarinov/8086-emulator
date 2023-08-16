@@ -5,10 +5,63 @@
 
 using namespace asm8086;
 
+// TODO:
+// General list of unfinished things:
+//
+// * The encoder has some bugs, where it does not encode instruction sizes (word/byte keywords) correctly.
+// * Better error handling should not allow any crashes, at least in the decoder/encoder logic.
+// * Support encoding and decoding for the entire 8086 instruction set. This is a bit tedious, but shouldn't be hard at
+//   this point. All the facilities are there.
+// * Segment register to memory and memory to segment register instructions should be implemented.
+//   This should be very easy.
+// * Trap, interrupt and direction FLAGS are missing.
+// * The emulator should be able to handle processor control instructions. Most of them are quite simple:
+//    * clc - just clear the carry flag
+//    * cmc - just toggle the carry flag
+//    * stc - just set the carry flag
+//    * cld - set the direction flag to 0, the direction flag is not used yet
+//    * std - set the direction flag to 1, the direction flag is not used yet
+//    * cli - clear the interrupt flag, interrupts are not used yet
+//    * sti - set the interrupt flag, interrupts are not used yet
+//    * hlt - just exit the emulator
+//    * esc - nothing to do for esc really. Unless I decide to implement an external FPU unit emulator, or somthing even crazier.
+//    * lock - this is used in multi-processor systems, so not really applicable for an emulator.
+//    * segment - override prefix. This one is probably the hardest because it requires a full implementation of the
+//      8086 memory addressing mechanisms.
+// * Other missing instruction that would be necessary for an actually usable emulator:
+//    * Data Transfer:
+//        * in/out - input/output to/from a port
+//        * lea - load effective address
+//        * push/pop - push/pop a value from the stack
+//        * xchg - exchange the contents of two registers
+//    * Arithmetic:
+//        * inc/dec - increment/decrement a register
+//        * mul/imul - multiply a register by another register or a value
+//        * div/idiv - divide a register by another register or a value
+//    * Logical:
+//        * all logic instructions are kinda necessary for a complete emulator.
+//    * String manipulation:
+//        * rep - repeat the next instruction
+//        * movs - move a string
+//        * cmps - compare two strings
+//        * scas - scan a string
+//        * lods - load a string
+//        * stds - store a string
+//     * Control Transfer (these are a necessary requiremnt, since they are used for procedure calls):
+//        * call - call a procedure
+//        * ret - return from a procedure
+//        * jmp - long jump to a label
+//
+// TODO2:
+// Features missing from the emulator:
+//
+// * Addressing of the full Megabyte of memory. This requires a full implementation of 8086 memory addressing. Which is
+//   significant amount of work for little educational benefits, because modern hardware does not use a similar model.
+// * String operation commands. I don't think I will be supporting strings for the forseeable future.
+// * Interrupts. Calling operating system interupts requires an operating system :) This could however be used for
+//   printing to std in and out. Maybe implementing just that one interupt would be cool.
+
 static command_line_args g_cmdLineArgs;
-static constexpr addr_size g_memorySize = core::MEGABYTE;
-static constexpr addr_size g_segmentSize = g_memorySize / (64 * core::KILOBYTE) + 1;
-[[maybe_unused]] static u8 g_memory[g_memorySize];
 
 void printRegisterState(EmulationContext& ctx) {
     fmt::print("Final Registers:\n");

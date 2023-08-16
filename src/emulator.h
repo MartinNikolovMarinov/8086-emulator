@@ -1,8 +1,6 @@
 #include "init_core.h"
 #include "opcode.h"
 
-// FIXME: Error handling should not allow for assertion crashes, or panics. Leaving this for last of course.
-
 namespace asm8086 {
 
 enum struct Mod : u8 {
@@ -59,7 +57,7 @@ enum struct Operands : u8 {
     Register_Memory,
     Register_Immediate,
 
-    Accumulator_Memory, // FIXME: This might be switched around with Memory_Accumulator ?
+    Accumulator_Memory,
     Accumulator_Immediate,
 
     ShortLabel,

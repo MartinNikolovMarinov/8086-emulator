@@ -1211,12 +1211,66 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             break;
         };
 
-        case Operands::ShortLabel: break; // nothing to do
+        case Operands::Accumulator_Immediate:
+        {
+            // Set destination
+            destRegister = &ctx.registers[i32(RegisterType::AX)];
+            dst.target = &destRegister->value;
+            dst.isLow = true;
+            // Set source
+            src.isWord = dst.isWord;
+            src.isLow = dst.isLow;
+            src.low = inst.data[0];
+            src.hi = inst.data[1];
+            break;
+        }
+        case Operands::Memory_Accumulator:
+        {
+            // Set destination
+            destRegister = &ctx.registers[i32(RegisterType::AX)];
+            dst.target = &destRegister->value;
+            dst.isLow = true;
+            // Set source
+            Instruction instCpy = inst;
+            {
+                // This instruction is a bit special. The data is addr and in this case it should be used as the
+                // displacement for the effective memory calculation. Remember that here the mode is not set!
+                instCpy.mod = Mod::MEMORY_16_BIT_DISPLACEMENT;
+                instCpy.disp[0] = inst.data[0];
+                instCpy.disp[1] = inst.data[1];
+            }
+            addr_off effectiveAddr = calcMemoryAddress(ctx, instCpy);
+            u16* srcMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            src.low = *(u8*)srcMemoryAddress;
+            src.hi = *((u8*)(srcMemoryAddress) + 1);
+            src.isLow = dst.isLow;
+            src.isWord = dst.isWord;
+            break;
+        }
+        case Operands::Accumulator_Memory:
+        {
+            // Set destination
+            Instruction instCpy = inst;
+            {
+                // Same reason as per Memory_Accumulator
+                instCpy.mod = Mod::MEMORY_16_BIT_DISPLACEMENT;
+                instCpy.disp[0] = inst.data[0];
+                instCpy.disp[1] = inst.data[1];
+            }
+            addr_off effectiveAddr = calcMemoryAddress(ctx, instCpy);
+            destMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            dst.target = destMemoryAddress;
+            dst.isLow = true;
+            // Set source
+            Register& accReg = ctx.registers[i32(RegisterType::AX)];
+            src.isWord = dst.isWord;
+            src.isLow = dst.isLow;
+            src.low = lowPart(accReg.value);
+            src.hi = highPart(accReg.value);
+            break;
+        }
 
-        // TODO: These 3 are the last ones that I will implement for now
-        case Operands::Accumulator_Immediate:      [[fallthrough]];
-        case Operands::Accumulator_Memory:         [[fallthrough]];
-        case Operands::Memory_Accumulator:         [[fallthrough]];
+        case Operands::ShortLabel: break; // nothing to do
 
         case Operands::SegReg_Memory16:            [[fallthrough]];
         case Operands::Memory_SegReg:              [[fallthrough]];
@@ -1324,7 +1378,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
         case InstType::LOOPZ:    [[fallthrough]];
         case InstType::JCXZ:     [[fallthrough]];
         case InstType::SENTINEL: [[fallthrough]];
-        case InstType::UNKNOWN:  Assert(false, "Instruction not supported yet."); return;
+        case InstType::UNKNOWN:  Assert(false, "Instruction not supported for emulation."); return;
     }
 
     u16 nextIp = ip.value + deltaIp + inst.byteCount;

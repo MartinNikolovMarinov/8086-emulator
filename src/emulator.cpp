@@ -37,7 +37,7 @@ bool is16bitDisplacement(Mod mod) {
 }
 
 Instruction decodeInstruction(core::arr<u8>& bytes, DecodingContext& ctx) {
-    auto decodeFromDisplacements = [&](auto& bytes, addr_off idx, const FieldDisplacements& fd, Instruction& inst) {
+    auto decodeFromDisplacements = [](auto& bytes, addr_off idx, const FieldDisplacements& fd, Instruction& inst) {
         i8 ibc = 0;
         if (fd.d.byteIdx >= 0) {
             ibc = core::max(ibc, fd.d.byteIdx);

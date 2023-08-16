@@ -6,7 +6,7 @@
 using namespace asm8086;
 
 // TODO:
-// General list of unfinished things:
+// General list of unfinished things, that would be easy to do:
 //
 // * The encoder has some bugs, where it does not encode instruction sizes (word/byte keywords) correctly.
 // * Better error handling should not allow any crashes, at least in the decoder/encoder logic.
@@ -28,6 +28,16 @@ using namespace asm8086;
 //    * lock - this is used in multi-processor systems, so not really applicable for an emulator.
 //    * segment - override prefix. This one is probably the hardest because it requires a full implementation of the
 //      8086 memory addressing mechanisms.
+//
+// TODO2:
+// Features missing from the emulator:
+//
+// * Procedures - would be nice to have enough instruction support to create a procedure calling convention.
+// * Addressing of the full Megabyte of memory - this requires a full implementation of 8086 memory addressing. Which is
+//   significant amount of work for little educational benefits, because modern hardware does not use a similar model.
+// * String operation commands - I don't think I will be supporting strings for the forseeable future.
+// * Interrupts - calling operating system interupts requires an operating system :) This could however be used for
+//   printing to std in and out. Maybe implementing just that one interupt would be cool.
 // * Other missing instruction that would be necessary for an actually usable emulator:
 //    * Data Transfer:
 //        * in/out - input/output to/from a port
@@ -51,15 +61,6 @@ using namespace asm8086;
 //        * call - call a procedure
 //        * ret - return from a procedure
 //        * jmp - long jump to a label
-//
-// TODO2:
-// Features missing from the emulator:
-//
-// * Addressing of the full Megabyte of memory. This requires a full implementation of 8086 memory addressing. Which is
-//   significant amount of work for little educational benefits, because modern hardware does not use a similar model.
-// * String operation commands. I don't think I will be supporting strings for the forseeable future.
-// * Interrupts. Calling operating system interupts requires an operating system :) This could however be used for
-//   printing to std in and out. Maybe implementing just that one interupt would be cool.
 
 static command_line_args g_cmdLineArgs;
 

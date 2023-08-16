@@ -44,11 +44,9 @@ GUARD_FN_TYPE_DEDUCTION(isSignedBitSet);
 constexpr inline bool isLowRegister(u8 reg)  { return reg < 0b100; }
 constexpr inline bool isHighRegister(u8 reg) { return reg >= 0b100; }
 
-// TODO: lowPart and highPart can be useful in corelib.
 constexpr inline u8 lowPart(u16 v) { return u8(v & 0x00FF); }
 constexpr inline u8 highPart(u16 v) { return u8((v & 0xFF00) >> 8); }
 
-// TODO: combineWord can be useful in corelib.
 constexpr inline u16 combineWord(u8 low, u8 high) { return u16(low) | (u16(high) << 8); }
 
 } // namespace asm8086

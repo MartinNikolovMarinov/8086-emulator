@@ -1,7 +1,5 @@
 #include "init_core.h"
 
-command_line_args g_cmdLineArgs;
-
 void* std_allocator_static::alloc(addr_size size) noexcept {
     return g_stdAlloc.alloc(size);
 }
@@ -23,6 +21,13 @@ void printUsage() {
     fmt::print("  -f (required)       the binary file to use.\n");
     fmt::print("  --exec              emulate the execution.\n");
     fmt::print("  --verbose           print verbose information.\n");
+    fmt::print("  --dump-memory       dumps the memory to standard out. When this option is on, all other std output is off.\n");
+    fmt::print("  --dump-start        the start address of the memory dump. Requires dump-memory to be set to true.\n");
+    fmt::print("                      If not specified, the default is 0.\n");
+    fmt::print("                      Must be less than dump-end.\n");
+    fmt::print("  --dump-end          the end address of the memory dump. Requires dump-memory to be set to true.\n");
+    fmt::print("                      If not specified, the default is 1024*1024.\n");
+    fmt::print("                      Must be greater than dump-start.\n");
     fmt::print("  --imm-values-fmt    the format to use when printing immediate values.\n");
     fmt::print("                      0 - is the default.\n");
     fmt::print("                      1 - use hex format.\n");
@@ -45,7 +50,7 @@ command_line_args initCore(i32 argc, const char** argv) {
     core::rnd_init();
 
     // Parse the command line arguments.
-    command_line_args cmdLineArgs = {};
+    static command_line_args cmdLineArgs = {};
     bool argsAreOk = false;
     if (argc > 1) {
         core::flag_parser parser;
@@ -53,6 +58,15 @@ command_line_args initCore(i32 argc, const char** argv) {
         parser.flag(&cmdLineArgs.fileName, "f", true);
         parser.flag(&cmdLineArgs.execFlag, "exec", false);
         parser.flag(&cmdLineArgs.verboseFlag, "verbose", false);
+        parser.flag(&cmdLineArgs.dumpMemory, "dump-memory", false);
+        parser.flag(&cmdLineArgs.dumpStart, "dump-start", false, [](void* a) -> bool {
+            u32 v = *(u32*)a;
+            return (v < cmdLineArgs.dumpEnd);
+        });
+        parser.flag(&cmdLineArgs.dumpEnd, "dump-end", false, [](void* a) -> bool {
+            u32 v = *(u32*)a;
+            return (v > cmdLineArgs.dumpStart);
+        });
         parser.flag(&cmdLineArgs.immValuesFmt, "imm-values-fmt", false, [](void* a) -> bool {
             u32 v = *(u32*)a;
             return (v <= 3);

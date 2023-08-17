@@ -58,6 +58,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt/include)
 
 # Core library:
+# FIXME: Remove the hardcoded nonsense and use a preset!
 option(CORE_DEBUG "" ON)
 option(CORE_ASSERT_ENABLED "" ON)
 option(CORE_LIBRARY_SHARED "" ON)

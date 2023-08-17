@@ -19,7 +19,7 @@
                 // "-f", "${workspaceFolder}/build/my_examples/01_mov_segment_registers.asm.o",
                 // "-f", "${workspaceFolder}/build/my_examples/02_low_and_hi_operations.asm.o",
                 // "-f", "${workspaceFolder}/build/my_examples/03_memory_addressing.asm.o",
-                "-f", "${workspaceFolder}/build/my_examples/04_accumulators.asm.o",
+                // "-f", "${workspaceFolder}/build/my_examples/04_accumulators.asm.o",
 
                 "-exec", "true",
                 "-verbose", "true",
@@ -35,6 +35,12 @@
                 // "-f", "${workspaceFolder}/build/14_basic_memory_addressing.asm.o",
                 // "-f", "${workspaceFolder}/build/15_loop_memory_addressing.asm.o",
                 // "-f", "${workspaceFolder}/build/16_challange_memory_addressing.asm.o",
+
+                "--exec", "true",
+                "--dump-memory", "true",
+                "--dump-start", "256",
+                "--dump-end", "16384",
+                "-f", "${workspaceFolder}/build/17_image_gen_program.asm.o",
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

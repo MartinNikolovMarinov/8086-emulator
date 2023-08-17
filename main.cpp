@@ -8,6 +8,7 @@ using namespace asm8086;
 // TODO:
 // General list of unfinished things, that would be easy to do:
 //
+// * I should load the instruction bytes into memory as well. Then fix the terrible linear search for jump instructions.
 // * The encoder has some bugs, where it does not encode instruction sizes (word/byte keywords) correctly.
 // * Better error handling should not allow any crashes, at least in the decoder/encoder logic.
 // * Support encoding and decoding for the entire 8086 instruction set. This is a bit tedious, but shouldn't be hard at
@@ -62,8 +63,6 @@ using namespace asm8086;
 //        * ret - return from a procedure
 //        * jmp - long jump to a label
 
-static command_line_args g_cmdLineArgs;
-
 void printRegisterState(EmulationContext& ctx) {
     fmt::print("Final Registers:\n");
 
@@ -108,39 +107,62 @@ void printRegisterState(EmulationContext& ctx) {
     }
 }
 
+void dumpMemory(u8* memory, u32 start, u32 end) {
+    i64 bytesWritten;
+    core::os_write(core::file_desc{(void*)core::STDOUT}, memory + start, end, bytesWritten);
+    Assert(bytesWritten == end);
+}
+
+void debugPrintCmdArguments(command_line_args& args) {
+    fmt::print("Command line arguments:\n");
+    fmt::print("\tFile name: {}\n", args.fileName);
+    fmt::print("\tExec flag: {}\n", args.execFlag);
+    fmt::print("\tVerbose flag: {}\n", args.verboseFlag);
+    fmt::print("\tDump memory: {}\n", args.dumpMemory);
+    fmt::print("\tDump start: {}\n", args.dumpStart);
+    fmt::print("\tDump end: {}\n", args.dumpEnd);
+    fmt::print("\tImmediate values format: {}\n", args.immValuesFmt);
+}
+
 i32 main(i32 argc, char const** argv) {
-    g_cmdLineArgs = initCore(argc, argv);
+    command_line_args cmdLineArgs = initCore(argc, argv);
 
-    auto binaryData = ValueOrDie(core::file_read_full(g_cmdLineArgs.fileName, O_RDONLY, 0666), "Failed to read file");
+    auto binaryData = ValueOrDie(core::file_read_full(cmdLineArgs.fileName, O_RDONLY, 0666), "Failed to read file");
 
+    core::str_builder<> sb;
     DecodingContext ctx = {};
-    switch (g_cmdLineArgs.immValuesFmt) {
+    switch (cmdLineArgs.immValuesFmt) {
         case 1: ctx.options = DecodingOpts(ctx.options | DEC_OP_IMMEDIATE_AS_HEX); break;
         case 2: ctx.options = DecodingOpts(ctx.options | DEC_OP_IMMEDIATE_AS_SIGNED); break;
         case 3: ctx.options = DecodingOpts(ctx.options | DEC_OP_IMMEDIATE_AS_UNSIGNED); break;
     }
 
     decodeAsm8086(binaryData, ctx);
-    core::str_builder<> sb;
-    encodeAsm8086(sb, ctx);
 
-    if (!g_cmdLineArgs.execFlag || g_cmdLineArgs.verboseFlag) {
-        fmt::print("bits 16\n\n");
+    if (!cmdLineArgs.execFlag || cmdLineArgs.isVerbose()) {
+        encodeAsm8086(sb, ctx);
         fmt::print("{}", sb.view().buff);
     }
 
     sb.clear();
 
-    if (g_cmdLineArgs.execFlag) {
+    if (cmdLineArgs.execFlag) {
         EmulationContext emuCtx = createEmulationCtx(core::move(ctx.instructions));
         emuCtx.__verbosecity_buff = core::move(sb);
-        if (g_cmdLineArgs.verboseFlag) {
+        if (cmdLineArgs.isVerbose()) {
             emuCtx.emuOpts = EmulationOpts(emuCtx.emuOpts | EmulationOpts::EMU_OPT_VERBOSE);
         }
-        if (g_cmdLineArgs.verboseFlag) fmt::print("\n");
+
+        if (cmdLineArgs.isVerbose()) fmt::print("\n");
         emulate(emuCtx);
-        if (g_cmdLineArgs.verboseFlag) fmt::print("\n");
-        printRegisterState(emuCtx);
+        if (cmdLineArgs.isVerbose()) fmt::print("\n");
+
+        if (cmdLineArgs.dumpMemory) {
+            dumpMemory(emuCtx.memory, cmdLineArgs.dumpStart, cmdLineArgs.dumpEnd);
+        }
+        else {
+            printRegisterState(emuCtx);
+        }
     }
 
     return 0;

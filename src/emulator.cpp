@@ -554,6 +554,7 @@ void encodeInstruction(core::str_builder<>& sb,
 }
 
 void encodeAsm8086(core::str_builder<>& asmOut, const DecodingContext& ctx) {
+    asmOut.append("bits 16\n\n");
     addr_size byteIdx = 0;
     for (addr_size i = 0; i <= ctx.instructions.len(); i++) {
         // Insert the label before the instruction.

@@ -31,7 +31,12 @@ struct command_line_args {
     i32 fileNameLen = 0;
     bool execFlag = false;
     bool verboseFlag = false;
+    bool dumpMemory = false;
+    u32 dumpStart = 0;
+    u32 dumpEnd = u32(core::MEGABYTE);
     i32 immValuesFmt = 0;
+
+    bool isVerbose() const { return verboseFlag && !dumpMemory; }
 };
 
 command_line_args initCore(i32 argc, const char** argv);

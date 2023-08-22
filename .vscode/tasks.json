@@ -8,9 +8,9 @@
                 "echo": true,
                 "reveal": "always",
                 "focus": true,
-                "panel": "dedicated",
+                "panel": "shared",
                 "showReuseMessage": false,
-                "close": true // set to true if the command fails and you want to see output.
+                "close": false // set to true if the command fails and you want to see output.
             },
             "args": [
                 "-j",
@@ -36,9 +36,9 @@
                 "echo": true,
                 "reveal": "always",
                 "focus": true,
-                "panel": "dedicated",
+                "panel": "shared",
                 "showReuseMessage": false,
-                "close": true
+                "close": false
             },
         }
     ],

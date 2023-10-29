@@ -7,9 +7,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json
 
-# Create executable:
-add_executable(${PROJECT_NAME}
-    main.cpp
+# Application source files
+set(SOURCES
     src/init_core.cpp
     src/init_core.h
 
@@ -19,6 +18,9 @@ add_executable(${PROJECT_NAME}
     src/opcode.cpp
     src/opcode.h
 )
+
+# Create executable:
+add_executable(${PROJECT_NAME} main.cpp ${SOURCES})
 
 # BEGIN Compile Options
 
@@ -58,12 +60,20 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt/include)
 
 # Core library:
-# FIXME: Remove the hardcoded nonsense and use a preset!
-option(CORE_DEBUG "" ON)
-option(CORE_ASSERT_ENABLED "" ON)
-option(CORE_LIBRARY_SHARED "" ON)
-option(CORE_BUILD_TESTS "" OFF)
-option(RUN_COMPILETIME_TESTS "" OFF)
-option(CORE_LIBRARY_SHARED "" ON)
 target_link_libraries(${PROJECT_NAME} PRIVATE core)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/core ${CMAKE_CURRENT_BINARY_DIR}/core)
+
+# Tests:
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_executable(run_tests test/run_tests.cpp ${SOURCES})
+    target_compile_options(run_tests PRIVATE ${mm_flags} ${mm_core_debug_flags})
+    target_compile_definitions(run_tests PRIVATE
+        -DPATH_TO_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data"
+    )
+    target_link_libraries(run_tests PRIVATE fmt)
+    target_include_directories(run_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib/fmt/include
+    )
+    target_link_libraries(run_tests PRIVATE core)
+endif()

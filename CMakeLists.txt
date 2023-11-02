@@ -69,6 +69,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(run_tests PRIVATE ${mm_flags} ${mm_core_debug_flags})
     target_compile_definitions(run_tests PRIVATE
         -DPATH_TO_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data"
+        -DPATH_TO_BINARY="${CMAKE_CURRENT_BINARY_DIR}"
     )
     target_link_libraries(run_tests PRIVATE fmt)
     target_include_directories(run_tests PRIVATE

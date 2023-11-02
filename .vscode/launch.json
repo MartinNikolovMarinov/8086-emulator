@@ -8,7 +8,7 @@
             "name": "Debug with GCC",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/main",
+            "program": "${workspaceFolder}/build/run_tests",
             "args": [
                 // "-f", "${workspaceFolder}/build/02_multiple_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/03_more_complicated_move_inst.asm.o",
@@ -21,9 +21,9 @@
                 // "-f", "${workspaceFolder}/build/my_examples/03_memory_addressing.asm.o",
                 // "-f", "${workspaceFolder}/build/my_examples/04_accumulators.asm.o",
 
-                "-exec", "true",
-                "-verbose", "true",
-                "-imm-values-fmt", "1",
+                // "-exec", "true",
+                // "-verbose", "true",
+                // "-imm-values-fmt", "1",
                 // "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o",
                 // "-f", "${workspaceFolder}/build/07_memory_to_register_sim.asm.o",
                 // "-f", "${workspaceFolder}/build/08_half_register_movs.asm.o",
@@ -34,9 +34,9 @@
                 // "-f", "${workspaceFolder}/build/13_ip_bonus.asm.o",
                 // "-f", "${workspaceFolder}/build/14_basic_memory_addressing.asm.o",
                 // "-f", "${workspaceFolder}/build/15_loop_memory_addressing.asm.o",
-                "-f", "${workspaceFolder}/build/16_challange_memory_addressing.asm.o",
+                // "-f", "${workspaceFolder}/build/16_challange_memory_addressing.asm.o",
 
-                "--exec", "true",
+                // "--exec", "true",
                 // "--dump-memory", "true",
                 // "--dump-start", "256",
                 // "--dump-end", "16384",

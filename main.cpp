@@ -127,7 +127,8 @@ void debugPrintCmdArguments(command_line_args& args) {
 i32 main(i32 argc, char const** argv) {
     command_line_args cmdLineArgs = initCore(argc, argv);
 
-    auto binaryData = ValueOrDie(core::file_read_full(cmdLineArgs.fileName, O_RDONLY, 0666), "Failed to read file");
+    core::arr<u8> binaryData;
+    Expect(core::os_read_entire_file(cmdLineArgs.fileName, binaryData));
 
     core::str_builder<> sb;
     DecodingContext ctx = {};

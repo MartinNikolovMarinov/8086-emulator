@@ -9,6 +9,8 @@
 
 using namespace coretypes;
 
+// Define the default allocator to be used by core:
+
 static core::std_stats_allocator g_stdAlloc;
 struct std_allocator_static {
     static void* alloc(addr_size size) noexcept;
@@ -25,6 +27,8 @@ struct std_allocator_static {
 
 #include <core.h>
 #include <std/core.h>
+
+// Define the command line arguments the application will use:
 
 struct command_line_args {
     char* fileName = nullptr;

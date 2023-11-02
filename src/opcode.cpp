@@ -262,7 +262,7 @@ void initDisplacementsLT() {
 } // namespace
 
 FieldDisplacements getFieldDisplacements(Opcode opcode) {
-    initDisplacementsLTOnce.do_once(initDisplacementsLT);
+    Expect(do_once(initDisplacementsLTOnce, initDisplacementsLT));
     FieldDisplacements fd = displacementsLT[opcode];
     return fd;
 }

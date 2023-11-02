@@ -1,5 +1,20 @@
 #include "init_core.h"
 
+// Hashing global functions:
+
+template<>
+addr_size core::hash(const core::str_view& key) {
+    addr_size h = addr_size(core::simple_hash_32(key.data(), key.len()));
+    return h;
+}
+
+template<>
+bool core::eq(const core::str_view& a, const core::str_view& b) {
+    return a.eq(b);
+}
+
+// Allocator global functions:
+
 void* std_allocator_static::alloc(addr_size size) noexcept {
     return g_stdAlloc.alloc(size);
 }
@@ -44,7 +59,6 @@ command_line_args initCore(i32 argc, const char** argv) {
                     failedExpr, file, line, errMsg);
         fmt::print(fmt::emphasis::bold, "[TRACE]:\n{}\n", trace);
         throw std::runtime_error("Assertion failed!");
-        return false;
     });
 
     core::rnd_init();
@@ -55,19 +69,19 @@ command_line_args initCore(i32 argc, const char** argv) {
     if (argc > 1) {
         core::flag_parser parser;
         parser.allowUnknownFlags = true;
-        parser.flag(&cmdLineArgs.fileName, "f", true);
-        parser.flag(&cmdLineArgs.execFlag, "exec", false);
-        parser.flag(&cmdLineArgs.verboseFlag, "verbose", false);
-        parser.flag(&cmdLineArgs.dumpMemory, "dump-memory", false);
-        parser.flag(&cmdLineArgs.dumpStart, "dump-start", false, [](void* a) -> bool {
+        parser.flag(&cmdLineArgs.fileName, core::sv("f"), true);
+        parser.flag(&cmdLineArgs.execFlag, core::sv("exec"), false);
+        parser.flag(&cmdLineArgs.verboseFlag, core::sv("verbose"), false);
+        parser.flag(&cmdLineArgs.dumpMemory, core::sv("dump-memory"), false);
+        parser.flag(&cmdLineArgs.dumpStart, core::sv("dump-start"), false, [](void* a) -> bool {
             u32 v = *(u32*)a;
             return (v < cmdLineArgs.dumpEnd);
         });
-        parser.flag(&cmdLineArgs.dumpEnd, "dump-end", false, [](void* a) -> bool {
+        parser.flag(&cmdLineArgs.dumpEnd, core::sv("dump-end"), false, [](void* a) -> bool {
             u32 v = *(u32*)a;
             return (v > cmdLineArgs.dumpStart);
         });
-        parser.flag(&cmdLineArgs.immValuesFmt, "imm-values-fmt", false, [](void* a) -> bool {
+        parser.flag(&cmdLineArgs.immValuesFmt, core::sv("imm-values-fmt"), false, [](void* a) -> bool {
             u32 v = *(u32*)a;
             return (v <= 3);
         });

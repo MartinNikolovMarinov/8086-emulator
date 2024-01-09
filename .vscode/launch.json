@@ -8,11 +8,11 @@
             "name": "Debug with GCC",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/main",
+            "program": "${workspaceFolder}/build/emulator_test",
             "args": [
-                "-f", "${workspaceFolder}/build/02_multiple_move_inst.asm.o",
+                // "-f", "${workspaceFolder}/build/02_multiple_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/03_more_complicated_move_inst.asm.o",
-                // "-f", "${workspaceFolder}/build/04_challange_move_inst.asm.o",
+                // "-f", "${workspaceFolder}/build/04_challenge_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/05_add_sub_cmp_jnz.asm.o",
                 // "-f", "${workspaceFolder}/build/test_01_from_01_to_05.asm.o",
 
@@ -34,7 +34,7 @@
                 // "-f", "${workspaceFolder}/build/13_ip_bonus.asm.o",
                 // "-f", "${workspaceFolder}/build/14_basic_memory_addressing.asm.o",
                 // "-f", "${workspaceFolder}/build/15_loop_memory_addressing.asm.o",
-                // "-f", "${workspaceFolder}/build/16_challange_memory_addressing.asm.o",
+                // "-f", "${workspaceFolder}/build/16_challenge_memory_addressing.asm.o",
 
                 // "--exec", "true",
                 // "--dump-memory", "true",

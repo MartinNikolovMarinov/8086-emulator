@@ -262,7 +262,7 @@ void initDisplacementsLT() {
 } // namespace
 
 FieldDisplacements getFieldDisplacements(Opcode opcode) {
-    if (isInitDisplacementsLTCalled) {
+    if (!isInitDisplacementsLTCalled) {
         initDisplacementsLT();
         isInitDisplacementsLTCalled = true;
     }

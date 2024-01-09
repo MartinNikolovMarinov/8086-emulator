@@ -114,6 +114,7 @@ if (${executable_name_uppercase}_BUILD_TESTS)
 
     set(test_files
         tests/t-index.cpp
+        tests/t-decoder.cpp
     )
 
     add_executable(${executable_name}_test test_${main_file} ${test_files} ${src_files})

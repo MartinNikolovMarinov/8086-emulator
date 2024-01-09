@@ -22,7 +22,7 @@ void assertContextDecodedAsExpected(const DecodingContext& ctx, const asm8086::I
     }
 }
 
-i32 decodeOneInstTest() {
+i32 decodeOneInstructionsTest() {
     /**
      * This binary data represents the following assembly code:
      *
@@ -1025,11 +1025,208 @@ i32 decodeChallengeMoveInstructonsTest() {
     return 0;
 }
 
+i32 decodeAddSubCmpJumpInstructionsTest() {
+
+    // This is example is located in data/05_add_sub_cmp_jump.asm
+    core::Arr<u8> binaryData;
+
+    binaryData
+        .append(0x03).append(0x18).append(0x03).append(0x5e).append(0x00).append(0x83)
+        .append(0xc6).append(0x02).append(0x83).append(0xc5).append(0x02).append(0x83)
+        .append(0xc1).append(0x08).append(0x03).append(0x5e).append(0x00).append(0x03)
+        .append(0x4f).append(0x02).append(0x02).append(0x7a).append(0x04).append(0x03)
+        .append(0x7b).append(0x06).append(0x01).append(0x18).append(0x01).append(0x5e)
+        .append(0x00).append(0x01).append(0x5e).append(0x00).append(0x01).append(0x4f)
+        .append(0x02).append(0x00).append(0x7a).append(0x04).append(0x01).append(0x7b)
+        .append(0x06).append(0x80).append(0x07).append(0x22).append(0x83).append(0x82)
+        .append(0xe8).append(0x03).append(0x1d).append(0x03).append(0x46).append(0x00)
+        .append(0x02).append(0x00).append(0x01).append(0xd8).append(0x00).append(0xe0)
+        .append(0x05).append(0xe8).append(0x03).append(0x04).append(0xe2).append(0x04)
+        .append(0x09).append(0x2b).append(0x18).append(0x2b).append(0x5e).append(0x00)
+        .append(0x83).append(0xee).append(0x02).append(0x83).append(0xed).append(0x02)
+        .append(0x83).append(0xe9).append(0x08).append(0x2b).append(0x5e).append(0x00)
+        .append(0x2b).append(0x4f).append(0x02).append(0x2a).append(0x7a).append(0x04)
+        .append(0x2b).append(0x7b).append(0x06).append(0x29).append(0x18).append(0x29)
+        .append(0x5e).append(0x00).append(0x29).append(0x5e).append(0x00).append(0x29)
+        .append(0x4f).append(0x02).append(0x28).append(0x7a).append(0x04).append(0x29)
+        .append(0x7b).append(0x06).append(0x80).append(0x2f).append(0x22).append(0x83)
+        .append(0x29).append(0x1d).append(0x2b).append(0x46).append(0x00).append(0x2a)
+        .append(0x00).append(0x29).append(0xd8).append(0x28).append(0xe0).append(0x2d)
+        .append(0xe8).append(0x03).append(0x2c).append(0xe2).append(0x2c).append(0x09)
+        .append(0x3b).append(0x18).append(0x3b).append(0x5e).append(0x00).append(0x83)
+        .append(0xfe).append(0x02).append(0x83).append(0xfd).append(0x02).append(0x83)
+        .append(0xf9).append(0x08).append(0x3b).append(0x5e).append(0x00).append(0x3b)
+        .append(0x4f).append(0x02).append(0x3a).append(0x7a).append(0x04).append(0x3b)
+        .append(0x7b).append(0x06).append(0x39).append(0x18).append(0x39).append(0x5e)
+        .append(0x00).append(0x39).append(0x5e).append(0x00).append(0x39).append(0x4f)
+        .append(0x02).append(0x38).append(0x7a).append(0x04).append(0x39).append(0x7b)
+        .append(0x06).append(0x80).append(0x3f).append(0x22).append(0x83).append(0x3e)
+        .append(0xe2).append(0x12).append(0x1d).append(0x3b).append(0x46).append(0x00)
+        .append(0x3a).append(0x00).append(0x39).append(0xd8).append(0x38).append(0xe0)
+        .append(0x3d).append(0xe8).append(0x03).append(0x3c).append(0xe2).append(0x3c)
+        .append(0x09).append(0x75).append(0x06).append(0x75).append(0x0b).append(0x75)
+        .append(0x26).append(0x75).append(0x2f).append(0x83).append(0x3e).append(0xe2)
+        .append(0x12).append(0x1d).append(0x75).append(0xf9).append(0x38).append(0x7a)
+        .append(0x04).append(0x75).append(0xf4).append(0x38).append(0x7a).append(0x04)
+        .append(0x39).append(0xd8).append(0x38).append(0xe0).append(0x75).append(0xf2)
+        .append(0x83).append(0x3e).append(0xe2).append(0x12).append(0x1d).append(0x75)
+        .append(0x08).append(0x38).append(0x7a).append(0x04).append(0x75).append(0xe6)
+        .append(0x38).append(0x7a).append(0x04).append(0x75).append(0xfe).append(0x83)
+        .append(0x3e).append(0xe2).append(0x12).append(0x1d).append(0x75).append(0xda)
+        .append(0x75).append(0xd1).append(0x75).append(0x00).append(0x74).append(0x00)
+        .append(0x7c).append(0xfe).append(0x7e).append(0xfc).append(0x72).append(0xfa)
+        .append(0x76).append(0xf8).append(0x7a).append(0xf6).append(0x70).append(0xf4)
+        .append(0x78).append(0xf2).append(0x75).append(0xf0).append(0x7d).append(0xee)
+        .append(0x7f).append(0xec).append(0x73).append(0xea).append(0x77).append(0xe8)
+        .append(0x7b).append(0xe6).append(0x71).append(0xe4).append(0x79).append(0xe2)
+        .append(0xe2).append(0xe0).append(0xe1).append(0xde).append(0xe0).append(0xdc)
+        .append(0xe3).append(0xda);
+
+    DecodingContext ctx;
+    decodeAsm8086(binaryData, ctx);
+
+    // Start encoding
+
+    core::StrBuilder out;
+    {
+        asm8086::encodeAsm8086(out, ctx);
+
+        const char* expectedAsm =
+        "bits 16\n"
+        "\n"
+        "add bx, [bx + si]\n"
+        "add bx, [bp]\n"
+        "add si, 2\n"
+        "add bp, 2\n"
+        "add cx, 8\n"
+        "add bx, [bp]\n"
+        "add cx, [bx + 2]\n"
+        "add bh, [bp + si + 4]\n"
+        "add di, [bp + di + 6]\n"
+        "add [bx + si], bx\n"
+        "add [bp], bx\n"
+        "add [bp], bx\n"
+        "add [bx + 2], cx\n"
+        "add [bp + si + 4], bh\n"
+        "add [bp + di + 6], di\n"
+        "add byte [bx], 34\n"
+        "add word [bp + si + 1000], 29\n"
+        "add ax, [bp]\n"
+        "add al, [bx + si]\n"
+        "add ax, bx\n"
+        "add al, ah\n"
+        "add ax, 1000\n"
+        "add al, -30\n"
+        "add al, 9\n"
+        "sub bx, [bx + si]\n"
+        "sub bx, [bp]\n"
+        "sub si, 2\n"
+        "sub bp, 2\n"
+        "sub cx, 8\n"
+        "sub bx, [bp]\n"
+        "sub cx, [bx + 2]\n"
+        "sub bh, [bp + si + 4]\n"
+        "sub di, [bp + di + 6]\n"
+        "sub [bx + si], bx\n"
+        "sub [bp], bx\n"
+        "sub [bp], bx\n"
+        "sub [bx + 2], cx\n"
+        "sub [bp + si + 4], bh\n"
+        "sub [bp + di + 6], di\n"
+        "sub byte [bx], 34\n"
+        "sub word [bx + di], 29\n"
+        "sub ax, [bp]\n"
+        "sub al, [bx + si]\n"
+        "sub ax, bx\n"
+        "sub al, ah\n"
+        "sub ax, 1000\n"
+        "sub al, -30\n"
+        "sub al, 9\n"
+        "cmp bx, [bx + si]\n"
+        "cmp bx, [bp]\n"
+        "cmp si, 2\n"
+        "cmp bp, 2\n"
+        "cmp cx, 8\n"
+        "cmp bx, [bp]\n"
+        "cmp cx, [bx + 2]\n"
+        "cmp bh, [bp + si + 4]\n"
+        "cmp di, [bp + di + 6]\n"
+        "cmp [bx + si], bx\n"
+        "cmp [bp], bx\n"
+        "cmp [bp], bx\n"
+        "cmp [bx + 2], cx\n"
+        "cmp [bp + si + 4], bh\n"
+        "cmp [bp + di + 6], di\n"
+        "cmp byte [bx], 34\n"
+        "cmp word [4834], 29\n"
+        "cmp ax, [bp]\n"
+        "cmp al, [bx + si]\n"
+        "cmp ax, bx\n"
+        "cmp al, ah\n"
+        "cmp ax, 1000\n"
+        "cmp al, -30\n"
+        "cmp al, 9\n"
+        "jne label_0\n"
+        "jne label_1\n"
+        "jne label_2\n"
+        "jne label_3\n"
+        "label_0:\n"
+        "cmp word [4834], 29\n"
+        "jne label_0\n"
+        "label_1:\n"
+        "cmp [bp + si + 4], bh\n"
+        "jne label_0\n"
+        "cmp [bp + si + 4], bh\n"
+        "cmp ax, bx\n"
+        "cmp al, ah\n"
+        "jne label_1\n"
+        "cmp word [4834], 29\n"
+        "jne label_2\n"
+        "cmp [bp + si + 4], bh\n"
+        "jne label_1\n"
+        "cmp [bp + si + 4], bh\n"
+        "label_2:\n"
+        "jne label_2\n"
+        "cmp word [4834], 29\n"
+        "jne label_1\n"
+        "jne label_0\n"
+        "label_3:\n"
+        "jne label_4\n"
+        "label_4:\n"
+        "je label_5\n"
+        "label_5:\n"
+        "jl label_5\n"
+        "jle label_5\n"
+        "jb label_5\n"
+        "jbe label_5\n"
+        "jp label_5\n"
+        "jo label_5\n"
+        "js label_5\n"
+        "jne label_5\n"
+        "jnl label_5\n"
+        "jnle label_5\n"
+        "jnb label_5\n"
+        "jnbe label_5\n"
+        "jnp label_5\n"
+        "jno label_5\n"
+        "jns label_5\n"
+        "loop label_5\n"
+        "loope label_5\n"
+        "loopne label_5\n"
+        "jcxz label_5\n";
+
+        Assert(out.eq(expectedAsm), "Encoding failed.");
+    }
+
+    return 0;
+}
+
 i32 runDecoderTestsSuite() {
-    RunTest(decodeOneInstTest);
+    RunTest(decodeOneInstructionsTest);
     RunTest(decodeMultipleInstructionsTest);
     RunTest(decodeComplicatedMoveInstructionsTest);
     RunTest(decodeChallengeMoveInstructonsTest);
+    RunTest(decodeAddSubCmpJumpInstructionsTest);
 
     return 0;
 }

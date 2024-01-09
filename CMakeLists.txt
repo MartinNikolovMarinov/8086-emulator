@@ -81,6 +81,7 @@ set(src_files
    src/logger.cpp
    src/opcodes.cpp
    src/decoder.cpp
+   src/emulator.cpp
 )
 
 add_executable(${executable_name} ${main_file} ${src_files})

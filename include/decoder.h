@@ -125,4 +125,8 @@ struct DecodingContext {
 void decodeAsm8086(core::Arr<u8>& bytes, DecodingContext& ctx);
 void encodeAsm8086(core::StrBuilder<>& asmOut, const DecodingContext& ctx);
 
+namespace detail {
+    void encodeBasicInstruction(core::StrBuilder<>& sb, const Instruction& inst, DecodingOpts decodingOpts);
+}
+
 } // namespace asm8086

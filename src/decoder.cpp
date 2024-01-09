@@ -5,76 +5,292 @@ namespace asm8086 {
 
 namespace {
 
-bool isDirectAddrMode(Mod mod, u8 rm) {
-    if (mod == Mod::NONE_SENTINEL) return false;
-    return mod == Mod::MEMORY_NO_DISPLACEMENT && rm == 0b110;
+Instruction decodeInstruction(core::Arr<u8>& bytes, DecodingContext& ctx);
+
+void appendU16toSb(core::StrBuilder<>& sb, u16 i);
+void appendImmFromLowAndHigh(core::StrBuilder<>& sb, DecodingOpts decodingOpts, bool explictSign, u8 low, u8 high);
+void appendReg(core::StrBuilder<>& sb, u8 reg, bool isWord, bool isSegment = false);
+void appendRegDisp(core::StrBuilder<>& sb, DecodingOpts decodingOpts, u8 reg, u8 dispLow, u8 dispHigh);
+void appendMemory(core::StrBuilder<>& sb, DecodingOpts decodingOpts,
+                  u8 rm, u8 dispLow, u8 dispHigh, bool isWord, bool isCalc, bool isDirect);
+void encodeInstruction(core::StrBuilder<>& sb,
+                       const DecodingContext& ctx,
+                       const Instruction& inst,
+                       addr_size byteIdx);
+
+                                        // 000  001   010   011   100   101   110   111
+constexpr const char* reg8bitTable[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" }; // w = 0
+constexpr const char* reg16bitTable[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" }; // w = 1
+
+                                        //   000       001         010        011     100   101   110   111
+constexpr const char* regDispTable[]  = { "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx" }; // w = 0
+
+                                        // 000  001   010   011
+constexpr const char* segRegTable[]   = { "es", "cs", "ss", "ds" };
+
+} // namespace
+
+void decodeAsm8086(core::Arr<u8>& bytes, DecodingContext& ctx) {
+    while (ctx.idx < bytes.len()) {
+        auto inst = decodeInstruction(bytes, ctx);
+        ctx.idx += inst.byteCount;
+        ctx.instructions.append(inst);
+    }
 }
 
-bool isRegToReg(Mod mod) {
-    if (mod == Mod::NONE_SENTINEL) return false;
-    return mod == Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
+void encodeAsm8086(core::StrBuilder<>& asmOut, const DecodingContext& ctx) {
+    asmOut.append("bits 16\n\n");
+    addr_size byteIdx = 0;
+    for (addr_size i = 0; i <= ctx.instructions.len(); i++) {
+        // Insert the label before the instruction.
+        {
+            i64 jmpidx = core::find(ctx.jmpLabels, [&](auto& el, addr_off) -> bool {
+                return el.byteOffset == addr_off(byteIdx);
+            });
+            if (jmpidx != -1) {
+                asmOut.append("label_");
+                appendU16toSb(asmOut, u16(ctx.jmpLabels[addr_size(jmpidx)].labelIdx));
+                asmOut.append(":");
+                if (i != ctx.instructions.len()) {
+                    // Don't want any empty lines at the end of the file. Ever.
+                    asmOut.append("\n");
+                }
+            }
+        }
+
+        if (i == ctx.instructions.len()) {
+            // This does one iteration past the end of the instruction array to print labels at the end of the file.
+            break;
+        }
+        auto inst = ctx.instructions[i];
+        byteIdx += inst.byteCount; // Intentionally increase the size before encoding.
+        encodeInstruction(asmOut, ctx, inst, byteIdx);
+        asmOut.append("\n");
+    }
 }
 
-bool isEffectiveAddrCalc(Mod mod) {
-    if (mod == Mod::NONE_SENTINEL) return false;
-    return mod != Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT;
+const char* instTypeToCptr(InstType t) {
+    switch (t) {
+        case InstType::MOV:      return "mov";
+        case InstType::ADD:      return "add";
+        case InstType::SUB:      return "sub";
+        case InstType::CMP:      return "cmp";
+        case InstType::JE:       return "je";
+        case InstType::JZ:       return "jz";
+        case InstType::JL:       return "jl";
+        case InstType::JNGE:     return "jnge";
+        case InstType::JLE:      return "jle";
+        case InstType::JNG:      return "jng";
+        case InstType::JB:       return "jb";
+        case InstType::JNAE:     return "jnae";
+        case InstType::JBE:      return "jbe";
+        case InstType::JNA:      return "jna";
+        case InstType::JP:       return "jp";
+        case InstType::JPE:      return "jpe";
+        case InstType::JO:       return "jo";
+        case InstType::JS:       return "js";
+        case InstType::JNE:      return "jne";
+        case InstType::JNZ:      return "jnz";
+        case InstType::JNL:      return "jnl";
+        case InstType::JGE:      return "jge";
+        case InstType::JNLE:     return "jnle";
+        case InstType::JG:       return "jg";
+        case InstType::JNB:      return "jnb";
+        case InstType::JAE:      return "jae";
+        case InstType::JNBE:     return "jnbe";
+        case InstType::JA:       return "ja";
+        case InstType::JNP:      return "jnp";
+        case InstType::JPO:      return "jpo";
+        case InstType::JNO:      return "jno";
+        case InstType::JNS:      return "jns";
+        case InstType::LOOP:     return "loop";
+        case InstType::LOOPE:    return "loope";
+        case InstType::LOOPZ:    return "loopz";
+        case InstType::LOOPNE:   return "loopne";
+        case InstType::LOOPNZ:   return "loopnz";
+        case InstType::JCXZ:     return "jcxz";
+        case InstType::UNKNOWN:  return "unknown";
+        case InstType::SENTINEL: break;
+    }
+    return "invalid";
 }
 
-bool isDisplacementMode(Mod mod) {
-    if (mod == Mod::NONE_SENTINEL) return false;
-    return mod == Mod::MEMORY_8_BIT_DISPLACEMENT ||
-           mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
+const char* modeToCptr(Mod mod) {
+    switch (mod) {
+        case Mod::MEMORY_NO_DISPLACEMENT:               return "memory_no_displacement";
+        case Mod::MEMORY_8_BIT_DISPLACEMENT:            return "memory_8_bit_displacement";
+        case Mod::MEMORY_16_BIT_DISPLACEMENT:           return "memory_16_bit_displacement";
+        case Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT: return "register_to_register_no_displacement";
+        case Mod::NONE_SENTINEL:                        return "none";
+    }
+    return "invalid mode";
 }
 
-bool is8bitDisplacement(Mod mod) {
-    if (mod == Mod::NONE_SENTINEL) return false;
-    return mod == Mod::MEMORY_8_BIT_DISPLACEMENT;
+const char* operandsToCptr(Operands o) {
+    switch (o) {
+        case Operands::Memory_Accumulator:    return "memory_accumulator";
+        case Operands::Memory_Register:       return "memory_register";
+        case Operands::Memory_Immediate:      return "memory_immediate";
+
+        case Operands::Register_Register:     return "register_register";
+        case Operands::Register_Memory:       return "register_memory";
+        case Operands::Register_Immediate:    return "register_immediate";
+
+        case Operands::Accumulator_Memory:    return "accumulator_memory";
+        case Operands::Accumulator_Immediate: return "accumulator_immediate";
+
+        case Operands::ShortLabel:            return "shortlabel";
+
+        case Operands::SegReg_Register16:     return "segreg_register16";
+        case Operands::SegReg_Memory16:       return "segreg_memory16";
+        case Operands::Register16_SegReg:     return "register16_segreg";
+        case Operands::Memory_SegReg:         return "memory_segreg";
+
+        case Operands::None:                  return "none";
+        case Operands::SENTINEL:              break;
+    }
+    return "invalid operands";
 }
 
-bool is16bitDisplacement(Mod mod) {
-    if (mod == Mod::NONE_SENTINEL) return false;
-    return mod == Mod::MEMORY_16_BIT_DISPLACEMENT;
+namespace detail {
+
+void encodeBasicInstruction(core::StrBuilder<>& sb, const Instruction& inst, DecodingOpts decodingOpts) {
+    u8 d = inst.d;
+    u8 w = inst.w;
+    u8 reg = inst.reg;
+    u8 rm = inst.rm;
+    Mod mod = inst.mod;
+    u8 dispLow = inst.disp[0];
+    u8 dispHigh = inst.disp[1];
+    u8 dataLow = inst.data[0];
+    u8 dataHigh = inst.data[1];
+    auto operands = inst.operands;
+    bool isCalc = isEffectiveAddrCalc(mod);
+    bool isDirect = isDirectAddrMode(mod, rm);
+    bool dispIsWord = isDirect ? true : is16bitDisplacement(mod);
+
+    auto appendToRegFromImm = [&](u8 dstReg, bool dstIsWord) {
+        appendReg(sb, dstReg, dstIsWord, false);
+        sb.append(", ");
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
+    };
+    auto appendToMemFromImm = [&](u8 dstMem, bool immIsWord) {
+        sb.append(immIsWord ? "word " : "byte ");
+        appendMemory(sb, decodingOpts, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
+        sb.append(", ");
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
+    };
+    auto appendToRegFromReg = [&](u8 dstReg, bool dstIsSegment,
+                                u8 srcReg, bool srcIsSegment, bool areWordRegs) {
+        appendReg(sb, dstReg, areWordRegs, dstIsSegment);
+        sb.append(", ");
+        appendReg(sb, srcReg, areWordRegs, srcIsSegment);
+    };
+    auto appendToRegFromMem = [&](u8 dstMem, u8 srcReg, bool srcIsSegment, bool srcIsWord) {
+        appendMemory(sb, decodingOpts, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
+        sb.append(", ");
+        appendReg(sb, srcReg, srcIsWord, srcIsSegment);
+    };
+    auto appendToMemFromReg = [&](u8 dstReg, bool dstIsSegment, bool dstIsWord, u8 srcMem) {
+        appendReg(sb, dstReg, dstIsWord, dstIsSegment);
+        sb.append(", ");
+        appendMemory(sb, decodingOpts, srcMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
+    };
+    auto appendMemAcc = [&](bool accRegIsWord) {
+        if (d) {
+            sb.append("[");
+            appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
+            sb.append("]");
+            sb.append(", ");
+            appendReg(sb, 0b000, accRegIsWord);
+        }
+        else {
+            appendReg(sb, 0b000, accRegIsWord);
+            sb.append(", ");
+            sb.append("[");
+            appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
+            sb.append("]");
+        }
+    };
+    auto appendToAccFromImm = [&](bool accRegIsWord) {
+        appendReg(sb, 0b000, accRegIsWord, false);
+        sb.append(", ");
+        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
+    };
+
+    // Encode the instruction name:
+    sb.append(instTypeToCptr(inst.type));
+    sb.append(" ");
+
+    switch (operands) {
+        case Operands::Accumulator_Memory:    appendMemAcc((w == 1)); break;
+        case Operands::Accumulator_Immediate: appendToAccFromImm((w == 1)); break;
+
+        case Operands::Memory_Accumulator:    appendMemAcc((w == 1)); break;
+        case Operands::Memory_Immediate:      appendToMemFromImm(rm, (w == 1));  break;
+        case Operands::Memory_Register:       appendToMemFromReg(reg, false, (w == 1), rm); break;
+
+        case Operands::Register_Register:     appendToRegFromReg(rm, false, reg, false, (w == 1)); break;
+        case Operands::Register_Memory:       appendToRegFromMem(rm, reg, false, (w == 1)); break;
+        case Operands::Register_Immediate:    appendToRegFromImm(rm, (w == 1)); break;
+
+        case Operands::SegReg_Register16:     appendToRegFromReg(rm, false, reg, true, true); break;
+        case Operands::Register16_SegReg:     appendToRegFromReg(reg, true, rm, false, true); break;
+
+        case Operands::SegReg_Memory16:       appendToRegFromMem(rm, reg, true, true); break;
+        case Operands::Memory_SegReg:         appendToMemFromReg(reg, true, true, rm); break;
+
+        case Operands::ShortLabel:            break; // Not considered a simple instruction.
+
+        case Operands::None:                  [[fallthrough]];
+        case Operands::SENTINEL:              [[fallthrough]];
+        default:                              sb.append("(encoding failed)"); break;
+    }
 }
+
+} // namespace detail
+
+namespace {
 
 Instruction decodeInstruction(core::Arr<u8>& bytes, DecodingContext& ctx) {
-    auto decodeFromDisplacements = [](auto& bytes, addr_off idx, const FieldDisplacements& fd, Instruction& inst) {
+    auto decodeFromDisplacements = [](auto& _bytes, addr_off idx, const FieldDisplacements& fd, Instruction& inst) {
         i8 ibc = 0;
         if (fd.d.byteIdx >= 0) {
             ibc = core::max(ibc, fd.d.byteIdx);
-            inst.d = (bytes[idx + ibc] & fd.d.mask) >> fd.d.offset;
+            inst.d = (_bytes[addr_size(idx + ibc)] & fd.d.mask) >> fd.d.offset;
         }
         if (fd.s.byteIdx >= 0) {
             ibc = core::max(ibc, fd.s.byteIdx);
-            inst.s = (bytes[idx + ibc] & fd.s.mask) >> fd.s.offset;
+            inst.s = (_bytes[addr_size(idx + ibc)] & fd.s.mask) >> fd.s.offset;
         }
         if (fd.w.offset >= 0) {
             ibc = core::max(ibc, fd.w.byteIdx);
-            inst.w = (bytes[idx + ibc] & fd.w.mask) >> fd.w.offset;
+            inst.w = (_bytes[addr_size(idx + ibc)] & fd.w.mask) >> fd.w.offset;
         }
         if (fd.mod.byteIdx >= 0) {
             ibc = core::max(ibc, fd.mod.byteIdx);
-            inst.mod = Mod((bytes[idx + ibc] & fd.mod.mask) >> fd.mod.offset);
+            inst.mod = Mod((_bytes[addr_size(idx + ibc)] & fd.mod.mask) >> fd.mod.offset);
         }
         else {
             inst.mod = Mod::NONE_SENTINEL;
         }
         if (fd.reg.byteIdx >= 0) {
             ibc = core::max(ibc, fd.reg.byteIdx);
-            inst.reg = (bytes[idx + ibc] & fd.reg.mask) >> fd.reg.offset;
+            inst.reg = (_bytes[addr_size(idx + ibc)] & fd.reg.mask) >> fd.reg.offset;
         }
         if (fd.rm.byteIdx >= 0) {
             ibc = core::max(ibc, fd.rm.byteIdx);
-            inst.rm = (bytes[idx + ibc] & fd.rm.mask) >> fd.rm.offset;
+            inst.rm = (_bytes[addr_size(idx + ibc)] & fd.rm.mask) >> fd.rm.offset;
         }
 
         // Displacement byte(s) decoding.
         if (fd.disp1.byteIdx > 0 && is8bitDisplacement(inst.mod)) {
-            inst.disp[0] = bytes[idx + ibc + 1];
+            inst.disp[0] = _bytes[addr_size(idx + ibc) + 1];
             ibc++;
         }
         else if (fd.disp1.byteIdx > 0 && (is16bitDisplacement(inst.mod) || isDirectAddrMode(inst.mod, inst.rm))) {
-            inst.disp[0] = bytes[idx + ibc + 1];
-            inst.disp[1] = bytes[idx + ibc + 2];
+            inst.disp[0] = _bytes[addr_size(idx + ibc + 1)];
+            inst.disp[1] = _bytes[addr_size(idx + ibc + 2)];
             ibc += 2;
         }
 
@@ -89,16 +305,16 @@ Instruction decodeInstruction(core::Arr<u8>& bytes, DecodingContext& ctx) {
 
         // Data byte(s) decoding.
         if (fd.data1.byteIdx > 0 && !dataIsWord) {
-            inst.data[0] = bytes[idx + ibc + 1];
+            inst.data[0] = _bytes[addr_size(idx + ibc + 1)];
             ibc++;
         }
         else if (fd.data1.byteIdx > 0 && dataIsWord) {
-            inst.data[0] = bytes[idx + ibc + 1];
-            inst.data[1] = bytes[idx + ibc + 2];
+            inst.data[0] = _bytes[addr_size(idx + ibc + 1)];
+            inst.data[1] = _bytes[addr_size(idx + ibc + 2)];
             ibc += 2;
         }
 
-        inst.byteCount += i8(ibc + 1);
+        inst.byteCount += u8(ibc + 1);
     };
 
     auto storeShortJmpLabel = [](core::Arr<JmpLabel>& jmpLabels, const Instruction &inst, addr_off idx) {
@@ -115,7 +331,7 @@ Instruction decodeInstruction(core::Arr<u8>& bytes, DecodingContext& ctx) {
     auto& jmpLabels = ctx.jmpLabels;
 
     addr_off idx = addr_off(ctx.idx);
-    Opcode opcode = opcodeDecode(bytes[idx]);
+    Opcode opcode = opcodeDecode(bytes[addr_size(idx)]);
     auto fd = getFieldDisplacements(opcode);
 
     Instruction inst = {};
@@ -313,18 +529,6 @@ Instruction decodeInstruction(core::Arr<u8>& bytes, DecodingContext& ctx) {
     return inst;
 }
 
-} // namespace
-
-void decodeAsm8086(core::Arr<u8>& bytes, DecodingContext& ctx) {
-    while (ctx.idx < bytes.len()) {
-        auto inst = decodeInstruction(bytes, ctx);
-        ctx.idx += inst.byteCount;
-        ctx.instructions.append(inst);
-    }
-}
-
-namespace {
-
 void appendU16toSb(core::StrBuilder<>& sb, u16 i) {
     char ncptr[8] = {};
     core::intToCptr(u32(i), ncptr);
@@ -332,19 +536,19 @@ void appendU16toSb(core::StrBuilder<>& sb, u16 i) {
 }
 
 void appendImmFromLowAndHigh(core::StrBuilder<>& sb, DecodingOpts decodingOpts, bool explictSign, u8 low, u8 high) {
-    auto appendSigned = [](core::StrBuilder<>& sb, auto i, bool explictSign) {
+    auto appendSigned = [](core::StrBuilder<>& s, auto i, bool isExplictSign) {
         if (i < 0) {
-            if (explictSign) sb.append("- ");
-            else sb.append("-");
+            if (isExplictSign) s.append("- ");
+            else s.append("-");
             i = -i;
         }
         else {
-            if (explictSign) sb.append("+ ");
+            if (isExplictSign) s.append("+ ");
         }
 
         char ncptr[8] = {};
         core::intToCptr(i32(i), ncptr);
-        sb.append(ncptr);
+        s.append(ncptr);
 
     };
 
@@ -369,17 +573,8 @@ void appendImmFromLowAndHigh(core::StrBuilder<>& sb, DecodingOpts decodingOpts, 
         else appendSigned(sb, i8(low), explictSign);
     }
 }
-                                        // 000  001   010   011   100   101   110   111
-constexpr const char* reg8bitTable[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" }; // w = 0
-constexpr const char* reg16bitTable[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" }; // w = 1
 
-                                        //   000       001         010        011     100   101   110   111
-constexpr const char* regDispTable[]  = { "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx" }; // w = 0
-
-                                        // 000  001   010   011
-constexpr const char* segRegTable[]   = { "es", "cs", "ss", "ds" };
-
-void appendReg(core::StrBuilder<>& sb, u8 reg, bool isWord, bool isSegment = false) {
+void appendReg(core::StrBuilder<>& sb, u8 reg, bool isWord, bool isSegment) {
     if (isSegment) {
         sb.append(segRegTable[reg]);
     }
@@ -413,96 +608,6 @@ void appendMemory(core::StrBuilder<>& sb, DecodingOpts decodingOpts,
     }
 }
 
-void encodeBasicInstruction(core::StrBuilder<>& sb, const Instruction& inst, DecodingOpts decodingOpts) {
-    u8 d = inst.d;
-    u8 w = inst.w;
-    u8 reg = inst.reg;
-    u8 rm = inst.rm;
-    Mod mod = inst.mod;
-    u8 dispLow = inst.disp[0];
-    u8 dispHigh = inst.disp[1];
-    u8 dataLow = inst.data[0];
-    u8 dataHigh = inst.data[1];
-    auto operands = inst.operands;
-    bool isCalc = isEffectiveAddrCalc(mod);
-    bool isDirect = isDirectAddrMode(mod, rm);
-    bool dispIsWord = isDirect ? true : is16bitDisplacement(mod);
-
-    auto appendToRegFromImm = [&](u8 dstReg, bool dstIsWord) {
-        appendReg(sb, dstReg, dstIsWord, false);
-        sb.append(", ");
-        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
-    };
-    auto appendToMemFromImm = [&](u8 dstMem, bool immIsWord) {
-        sb.append(immIsWord ? "word " : "byte ");
-        appendMemory(sb, decodingOpts, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
-        sb.append(", ");
-        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
-    };
-    auto appendToRegFromReg = [&](u8 dstReg, bool dstIsSegment,
-                                u8 srcReg, bool srcIsSegment, bool areWordRegs) {
-        appendReg(sb, dstReg, areWordRegs, dstIsSegment);
-        sb.append(", ");
-        appendReg(sb, srcReg, areWordRegs, srcIsSegment);
-    };
-    auto appendToRegFromMem = [&](u8 dstMem, u8 srcReg, bool srcIsSegment, bool srcIsWord) {
-        appendMemory(sb, decodingOpts, dstMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
-        sb.append(", ");
-        appendReg(sb, srcReg, srcIsWord, srcIsSegment);
-    };
-    auto appendToMemFromReg = [&](u8 dstReg, bool dstIsSegment, bool dstIsWord, u8 srcMem) {
-        appendReg(sb, dstReg, dstIsWord, dstIsSegment);
-        sb.append(", ");
-        appendMemory(sb, decodingOpts, srcMem, dispLow, dispHigh, dispIsWord, isCalc, isDirect);
-    };
-    auto appendMemAcc = [&](bool accRegIsWord, u8 d) {
-        if (d) {
-            sb.append("[");
-            appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
-            sb.append("]");
-            sb.append(", ");
-            appendReg(sb, 0b000, accRegIsWord);
-        }
-        else {
-            appendReg(sb, 0b000, accRegIsWord);
-            sb.append(", ");
-            sb.append("[");
-            appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
-            sb.append("]");
-        }
-    };
-    auto appendToAccFromImm = [&](bool accRegIsWord) {
-        appendReg(sb, 0b000, accRegIsWord, false);
-        sb.append(", ");
-        appendImmFromLowAndHigh(sb, decodingOpts, false, dataLow, dataHigh);
-    };
-
-    // Encode the instruction name:
-    sb.append(instTypeToCptr(inst.type));
-    sb.append(" ");
-
-    switch (operands) {
-        case Operands::Accumulator_Memory:    appendMemAcc((w == 1), d); break;
-        case Operands::Accumulator_Immediate: appendToAccFromImm((w == 1)); break;
-
-        case Operands::Memory_Accumulator:    appendMemAcc((w == 1), d); break;
-        case Operands::Memory_Immediate:      appendToMemFromImm(rm, (w == 1));  break;
-        case Operands::Memory_Register:       appendToMemFromReg(reg, false, (w == 1), rm); break;
-
-        case Operands::Register_Register:     appendToRegFromReg(rm, false, reg, false, (w == 1)); break;
-        case Operands::Register_Memory:       appendToRegFromMem(rm, reg, false, (w == 1)); break;
-        case Operands::Register_Immediate:    appendToRegFromImm(rm, (w == 1)); break;
-
-        case Operands::SegReg_Register16:     appendToRegFromReg(rm, false, reg, true, true); break;
-        case Operands::Register16_SegReg:     appendToRegFromReg(reg, true, rm, false, true); break;
-
-        case Operands::SegReg_Memory16:       appendToRegFromMem(rm, reg, true, true); break;
-        case Operands::Memory_SegReg:         appendToMemFromReg(reg, true, true, rm); break;
-
-        default:                              sb.append("(encoding failed)"); break;
-    }
-}
-
 void encodeInstruction(core::StrBuilder<>& sb,
                        const DecodingContext& ctx,
                        const Instruction& inst,
@@ -521,7 +626,7 @@ void encodeInstruction(core::StrBuilder<>& sb,
         }
         else {
             sb.append("label_");
-            appendU16toSb(sb, u16(jmpLabels[jmpidx].labelIdx));
+            appendU16toSb(sb, u16(jmpLabels[addr_size(jmpidx)].labelIdx));
         }
     };
 
@@ -542,7 +647,7 @@ void encodeInstruction(core::StrBuilder<>& sb,
         case Operands::Register16_SegReg:     [[fallthrough]];
 
         case Operands::SegReg_Memory16:       [[fallthrough]];
-        case Operands::Memory_SegReg:         encodeBasicInstruction(sb, inst, ctx.options); break;
+        case Operands::Memory_SegReg:         detail::encodeBasicInstruction(sb, inst, ctx.options); break;
 
         // Control Transfer Instructions require more context for encoding:
         case Operands::ShortLabel:            appendShortLabel(); break;
@@ -553,119 +658,5 @@ void encodeInstruction(core::StrBuilder<>& sb,
 }
 
 } // namespace
-
-void encodeAsm8086(core::StrBuilder<>& asmOut, const DecodingContext& ctx) {
-    asmOut.append("bits 16\n\n");
-    addr_size byteIdx = 0;
-    for (addr_size i = 0; i <= ctx.instructions.len(); i++) {
-        // Insert the label before the instruction.
-        {
-            i64 jmpidx = core::find(ctx.jmpLabels, [&](auto& el, addr_off) -> bool {
-                return el.byteOffset == addr_off(byteIdx);
-            });
-            if (jmpidx != -1) {
-                asmOut.append("label_");
-                appendU16toSb(asmOut, u64(ctx.jmpLabels[jmpidx].labelIdx));
-                asmOut.append(":");
-                if (i != ctx.instructions.len()) {
-                    // Don't want any empty lines at the end of the file. Ever.
-                    asmOut.append("\n");
-                }
-            }
-        }
-
-        if (i == ctx.instructions.len()) {
-            // This does one iteration past the end of the instruction array to print labels at the end of the file.
-            break;
-        }
-        auto inst = ctx.instructions[i];
-        byteIdx += inst.byteCount; // Intentionally increase the size before encoding.
-        encodeInstruction(asmOut, ctx, inst, byteIdx);
-        asmOut.append("\n");
-    }
-}
-
-const char* instTypeToCptr(InstType t) {
-    switch (t) {
-        case InstType::MOV:      return "mov";
-        case InstType::ADD:      return "add";
-        case InstType::SUB:      return "sub";
-        case InstType::CMP:      return "cmp";
-        case InstType::JE:       return "je";
-        case InstType::JZ:       return "jz";
-        case InstType::JL:       return "jl";
-        case InstType::JNGE:     return "jnge";
-        case InstType::JLE:      return "jle";
-        case InstType::JNG:      return "jng";
-        case InstType::JB:       return "jb";
-        case InstType::JNAE:     return "jnae";
-        case InstType::JBE:      return "jbe";
-        case InstType::JNA:      return "jna";
-        case InstType::JP:       return "jp";
-        case InstType::JPE:      return "jpe";
-        case InstType::JO:       return "jo";
-        case InstType::JS:       return "js";
-        case InstType::JNE:      return "jne";
-        case InstType::JNZ:      return "jnz";
-        case InstType::JNL:      return "jnl";
-        case InstType::JGE:      return "jge";
-        case InstType::JNLE:     return "jnle";
-        case InstType::JG:       return "jg";
-        case InstType::JNB:      return "jnb";
-        case InstType::JAE:      return "jae";
-        case InstType::JNBE:     return "jnbe";
-        case InstType::JA:       return "ja";
-        case InstType::JNP:      return "jnp";
-        case InstType::JPO:      return "jpo";
-        case InstType::JNO:      return "jno";
-        case InstType::JNS:      return "jns";
-        case InstType::LOOP:     return "loop";
-        case InstType::LOOPE:    return "loope";
-        case InstType::LOOPZ:    return "loopz";
-        case InstType::LOOPNE:   return "loopne";
-        case InstType::LOOPNZ:   return "loopnz";
-        case InstType::JCXZ:     return "jcxz";
-        case InstType::UNKNOWN:  return "unknown";
-        case InstType::SENTINEL: break;
-    }
-    return "invalid";
-}
-
-const char* modeToCptr(Mod mod) {
-    switch (mod) {
-        case Mod::MEMORY_NO_DISPLACEMENT:               return "memory_no_displacement";
-        case Mod::MEMORY_8_BIT_DISPLACEMENT:            return "memory_8_bit_displacement";
-        case Mod::MEMORY_16_BIT_DISPLACEMENT:           return "memory_16_bit_displacement";
-        case Mod::REGISTER_TO_REGISTER_NO_DISPLACEMENT: return "register_to_register_no_displacement";
-        case Mod::NONE_SENTINEL:                        return "none";
-    }
-    return "invalid mode";
-}
-
-const char* operandsToCptr(Operands o) {
-    switch (o) {
-        case Operands::Memory_Accumulator:    return "memory_accumulator";
-        case Operands::Memory_Register:       return "memory_register";
-        case Operands::Memory_Immediate:      return "memory_immediate";
-
-        case Operands::Register_Register:     return "register_register";
-        case Operands::Register_Memory:       return "register_memory";
-        case Operands::Register_Immediate:    return "register_immediate";
-
-        case Operands::Accumulator_Memory:    return "accumulator_memory";
-        case Operands::Accumulator_Immediate: return "accumulator_immediate";
-
-        case Operands::ShortLabel:            return "shortlabel";
-
-        case Operands::SegReg_Register16:     return "segreg_register16";
-        case Operands::SegReg_Memory16:       return "segreg_memory16";
-        case Operands::Register16_SegReg:     return "register16_segreg";
-        case Operands::Memory_SegReg:         return "memory_segreg";
-
-        case Operands::None:                  return "none";
-        case Operands::SENTINEL:              break;
-    }
-    return "invalid operands";
-}
 
 } // namespace asm8086

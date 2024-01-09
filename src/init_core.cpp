@@ -92,7 +92,7 @@ bool initCore(i32 argc, const char** argv) {
         core::CmdFlagParser parser;
         parser.allowUnknownFlags(true);
 
-        parser.setFlagCptr(&cmdArgs.fileName, core::sv("f"), true);
+        parser.setFlagString(&cmdArgs.fileName, core::sv("f"), true);
         parser.setFlagBool(&cmdArgs.execFlag, core::sv("exec"), false);
         parser.setFlagBool(&cmdArgs.verboseFlag, core::sv("verbose"), false);
         parser.setFlagBool(&cmdArgs.dumpMemory, core::sv("dump-memory"), false);
@@ -105,8 +105,14 @@ bool initCore(i32 argc, const char** argv) {
             return (v > cmdArgs.dumpStart);
         });
 
-        auto res = parser.parse(argc, argv);
-        argsAreOk = !res.hasErr();
+        {
+            auto res = parser.parse(argc, argv);
+            argsAreOk = !res.hasErr();
+        }
+        {
+            auto res = parser.matchFlags();
+            argsAreOk = !res.hasErr();
+        }
     }
 
     if (!argsAreOk) {

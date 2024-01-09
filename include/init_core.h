@@ -27,7 +27,7 @@ template<> bool core::eq(const u32& a, const u32& b);
 namespace asm8086 {
 
 struct CommandLineArguments {
-    char* fileName = nullptr;
+    core::StrBuilder<> fileName;
     i32 fileNameLen = 0;
     bool execFlag = false;
     bool verboseFlag = false;

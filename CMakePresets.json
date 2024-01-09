@@ -8,11 +8,11 @@
 			"binaryDir": "${sourceDir}/build",
 			"cacheVariables": {
 				"CMAKE_BUILD_TYPE": "Debug",
+
 				"CORE_DEBUG": "ON",
 				"CORE_ASSERT_ENABLED": "ON",
 				"CORE_LIBRARY_SHARED": "OFF",
-				"CORE_BUILD_TESTS": "OFF",
-				"RUN_COMPILETIME_TESTS": "OFF"
+				"CORE_BUILD_TESTS": "OFF"
 			}
 		},
 		{
@@ -22,11 +22,11 @@
 			"binaryDir": "${sourceDir}/build",
 			"cacheVariables": {
 				"CMAKE_BUILD_TYPE": "Release",
+
 				"CORE_DEBUG": "OFF",
 				"CORE_ASSERT_ENABLED": "OFF",
 				"CORE_LIBRARY_SHARED": "OFF",
-				"CORE_BUILD_TESTS": "OFF",
-				"RUN_COMPILETIME_TESTS": "OFF"
+				"CORE_BUILD_TESTS": "OFF"
 			}
 		}
 	]

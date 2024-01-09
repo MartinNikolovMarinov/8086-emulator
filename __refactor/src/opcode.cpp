@@ -1,4 +1,4 @@
-#include "opcode.h"
+#include <opcode.h>
 
 namespace asm8086 {
 

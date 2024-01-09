@@ -1,5 +1,5 @@
-#include "init_core.h"
-#include "opcode.h"
+#include <init_core.h>
+#include <opcode.h>
 
 namespace asm8086 {
 

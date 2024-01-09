@@ -39,30 +39,6 @@ bool core::eq(const u32& a, const u32& b) {
     return a == b;
 }
 
-void printUsage() {
-    using namespace asm8086;
-
-    logCleanBold("Usage:");
-    logClean("  -f (required)       the binary file to use.");
-    logClean("  --exec              emulate the execution.");
-    logClean("  --verbose           print verbose information.");
-    logClean("  --dump-memory       dumps the memory to standard out. When this option is on, all other std output is off.");
-    logClean("  --dump-start        the start address of the memory dump. Requires dump-memory to be set to true.");
-    logClean("                      If not specified, the default is 0.");
-    logClean("                      Must be less than dump-end.");
-    logClean("  --dump-end          the end address of the memory dump. Requires dump-memory to be set to true.");
-    logClean("                      If not specified, the default is 1024*1024.");
-    logClean("                      Must be greater than dump-start.");
-    logClean("  --imm-values-fmt    the format to use when printing immediate values.");
-    logClean("                      0 - is the default.");
-    logClean("                      1 - use hex format.");
-    logClean("                      2 - use signed format.");
-    logClean("                      3 - use unsigned format.");
-}
-
-namespace asm8086 { CommandLineArguments cmdArgs; }
-
-
 bool initCore(i32 argc, const char** argv) {
     using namespace asm8086;
 
@@ -86,39 +62,6 @@ bool initCore(i32 argc, const char** argv) {
 
         throw std::runtime_error("Assertion failed!");
     });
-
-    bool argsAreOk = false;
-    if (argc > 1) {
-        core::CmdFlagParser parser;
-        parser.allowUnknownFlags(true);
-
-        parser.setFlagString(&cmdArgs.fileName, core::sv("f"), true);
-        parser.setFlagBool(&cmdArgs.execFlag, core::sv("exec"), false);
-        parser.setFlagBool(&cmdArgs.verboseFlag, core::sv("verbose"), false);
-        parser.setFlagBool(&cmdArgs.dumpMemory, core::sv("dump-memory"), false);
-        parser.setFlagUint32(&cmdArgs.dumpStart, core::sv("dump-start"), false, [](void* a) -> bool {
-            u32 v = *(u32*)a;
-            return (v < cmdArgs.dumpEnd);
-        });
-        parser.setFlagUint32(&cmdArgs.dumpEnd, core::sv("dump-end"), false, [](void* a) -> bool {
-            u32 v = *(u32*)a;
-            return (v > cmdArgs.dumpStart);
-        });
-
-        {
-            auto res = parser.parse(argc, argv);
-            argsAreOk = !res.hasErr();
-        }
-        {
-            auto res = parser.matchFlags();
-            argsAreOk = !res.hasErr();
-        }
-    }
-
-    if (!argsAreOk) {
-        printUsage();
-        return false;
-    }
 
     return true;
 }

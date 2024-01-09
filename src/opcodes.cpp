@@ -110,8 +110,8 @@ Opcode opcodeDecode(u8 opcodeByte) {
 
 namespace {
 
+static bool isInitDisplacementsLTCalled = false;
 static FieldDisplacements displacementsLT[core::MAX_U8];
-static core::once initDisplacementsLTOnce;
 
 constexpr FieldDisplacements::Displacement DEFAULT_NOT_SET  = { 0, 0, -1 };
 constexpr FieldDisplacements::Displacement DEFAULT_OPTIONAL = { 0, 0b11111111, 2 };
@@ -262,7 +262,10 @@ void initDisplacementsLT() {
 } // namespace
 
 FieldDisplacements getFieldDisplacements(Opcode opcode) {
-    Expect(do_once(initDisplacementsLTOnce, initDisplacementsLT));
+    if (isInitDisplacementsLTCalled) {
+        initDisplacementsLT();
+        isInitDisplacementsLTCalled = true;
+    }
     FieldDisplacements fd = displacementsLT[opcode];
     return fd;
 }

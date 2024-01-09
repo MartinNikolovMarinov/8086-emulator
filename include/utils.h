@@ -29,8 +29,6 @@ constexpr inline void safeCastSignedInt(i8 from, i64& to)  { detail::_safeCastSi
 constexpr inline void safeCastSignedInt(i16 from, i64& to) { detail::_safeCastSignedInt(from, to); }
 constexpr inline void safeCastSignedInt(i32 from, i64& to) { detail::_safeCastSignedInt(from, to); }
 
-GUARD_FN_TYPE_DEDUCTION(safeCastSignedInt);
-
 constexpr inline bool isSignedBitSet(u16 value) {
     return (value & 0x8000) != 0;
 }
@@ -38,8 +36,6 @@ constexpr inline bool isSignedBitSet(u16 value) {
 constexpr inline bool isSignedBitSet(u8 value) {
     return (value & 0x80) != 0;
 }
-
-GUARD_FN_TYPE_DEDUCTION(isSignedBitSet);
 
 constexpr inline bool isLowRegister(u8 reg)  { return reg < 0b100; }
 constexpr inline bool isHighRegister(u8 reg) { return reg >= 0b100; }

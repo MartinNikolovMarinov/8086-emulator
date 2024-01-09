@@ -23,22 +23,3 @@ template<> addr_size core::hash(const u32& key);
 template<> bool core::eq(const core::StrView& a, const core::StrView& b);
 template<> bool core::eq(const i32& a, const i32& b);
 template<> bool core::eq(const u32& a, const u32& b);
-
-namespace asm8086 {
-
-struct CommandLineArguments {
-    core::StrBuilder<> fileName;
-    i32 fileNameLen = 0;
-    bool execFlag = false;
-    bool verboseFlag = false;
-    bool dumpMemory = false;
-    u32 dumpStart = 0;
-    u32 dumpEnd = u32(core::MEGABYTE);
-    i32 immValuesFmt = 0;
-
-    bool isVerbose() const { return verboseFlag && !dumpMemory; }
-};
-
-extern CommandLineArguments cmdArgs;
-
-} // namespace asm8086

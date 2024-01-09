@@ -8,7 +8,7 @@
             "name": "Debug with GCC",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/emulator_test",
+            "program": "${workspaceFolder}/build/emulator",
             "args": [
                 // "-f", "${workspaceFolder}/build/02_multiple_move_inst.asm.o",
                 // "-f", "${workspaceFolder}/build/03_more_complicated_move_inst.asm.o",
@@ -21,10 +21,10 @@
                 // "-f", "${workspaceFolder}/build/my_examples/03_memory_addressing.asm.o",
                 // "-f", "${workspaceFolder}/build/my_examples/04_accumulators.asm.o",
 
-                // "-exec", "true",
-                // "-verbose", "true",
+                "--exec",
+                "--verbose",
                 // "-imm-values-fmt", "1",
-                // "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o",
+                "-f", "${workspaceFolder}/build/06_simple_mov_sim.asm.o",
                 // "-f", "${workspaceFolder}/build/07_memory_to_register_sim.asm.o",
                 // "-f", "${workspaceFolder}/build/08_half_register_movs.asm.o",
                 // "-f", "${workspaceFolder}/build/09_carry_and_sign_flags.asm.o",

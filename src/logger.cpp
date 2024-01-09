@@ -88,6 +88,15 @@ void logClean(const char* format, ...) {
     printf("%s\n", loggingBuffer);
 }
 
+void logCleanNoSpace(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(loggingBuffer, BUFFER_SIZE, format, args);
+    va_end(args);
+
+    printf("%s", loggingBuffer);
+}
+
 void logCleanBold(const char* format, ...) {
     va_list args;
     va_start(args, format);
@@ -95,6 +104,15 @@ void logCleanBold(const char* format, ...) {
     va_end(args);
 
     printf(ANSI_BOLD("%s\n"), loggingBuffer);
+}
+
+void logCleanBoldNoSpace(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(loggingBuffer, BUFFER_SIZE, format, args);
+    va_end(args);
+
+    printf(ANSI_BOLD("%s"), loggingBuffer);
 }
 
 } // namespace stlv

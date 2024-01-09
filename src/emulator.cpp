@@ -710,7 +710,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             detail::encodeBasicInstruction(sb, inst, ctx.decodingOpts);
             const char* encodedInst = sb.view().buff;
 
-            logCleanBold("(%lld) %s", ++tmp_g_counter, encodedInst);
+            logCleanBoldNoSpace("(%lld) %s", ++tmp_g_counter, encodedInst);
 
             if (destRegister) {
                 constexpr const char* fmtCptr = " ; %s:  0x%X-> 0x%X, ip:  0x%X-> 0x%X, flags: %s";
@@ -722,13 +722,11 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
                 addr_off targetAddrOff = addr_off(reinterpret_cast<u8*>(destMemoryAddress) - ctx.memory);
                 logClean(fmtCptr, targetAddrOff, old, *destMemoryAddress, ip.value, nextIp, flagsBuf);
             }
-
-            logClean("\n");
         }
         else {
             logCleanBold("(%lld) %s", ++tmp_g_counter, instTypeToCptr(inst.type));
             logClean(" -> ip: 0x%X->0x%X, flags: %s", ip.value, nextIp, flagsBuf);
-            logClean("\n");
+            logClean("");
         }
     }
 

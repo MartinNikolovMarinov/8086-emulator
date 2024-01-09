@@ -37,7 +37,9 @@ void muteLogger(bool mute);
 #define logFatal(format, ...) __log(asm8086::LogLevel::L_FATAL,   asm8086::LogSpecialMode::NONE, __func__, format, ##__VA_ARGS__)
 
 void logClean(const char* format, ...);
+void logCleanNoSpace(const char* format, ...);
 void logCleanBold(const char* format, ...);
+void logCleanBoldNoSpace(const char* format, ...);
 
 } // namespace stlv
 

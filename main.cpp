@@ -48,8 +48,6 @@ bool parseCmdArguments(i32 argc, char const** argv) {
         parser.allowUnknownFlags(true);
 
         parser.setFlagString(&cmdArgs.fileName, core::sv("f"), true);
-        parser.setFlagBool(&cmdArgs.execFlag, core::sv("exec"), false);
-        parser.setFlagBool(&cmdArgs.verboseFlag, core::sv("verbose"), false);
         parser.setFlagBool(&cmdArgs.dumpMemory, core::sv("dump-memory"), false);
         parser.setFlagUint32(&cmdArgs.dumpStart, core::sv("dump-start"), false, [](void* a) -> bool {
             u32 v = *reinterpret_cast<u32*>(a);
@@ -68,9 +66,24 @@ bool parseCmdArguments(i32 argc, char const** argv) {
             auto res = parser.parse(addr_size(argc), argv);
             argsAreOk = !res.hasErr();
         }
+
         {
             auto res = parser.matchFlags();
             argsAreOk = !res.hasErr();
+        }
+
+        // Check set options
+        {
+            parser.options([](const core::StrView arg) {
+                if (arg.eq(core::sv("exec"))) {
+                    cmdArgs.execFlag = true;
+                }
+                else if (arg.eq(core::sv("verbose"))) {
+                    cmdArgs.verboseFlag = true;
+                }
+
+                return true;
+            });
         }
     }
 
@@ -114,46 +127,46 @@ void dumpMemory(u8* memory, u32 start, u32 end) {
 void printRegisterState(asm8086::EmulationContext& ctx) {
     using RegisterType = asm8086::RegisterType;
 
-    asm8086::logClean("Final Registers:\n");
+    asm8086::logClean("Final Registers:");
 
     auto reg = ctx.registers[i32(RegisterType::AX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::BX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::CX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::DX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::SP)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::BP)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::SI)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::DI)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
 
-    asm8086::logClean("\n");
+    asm8086::logClean("");
 
     reg = ctx.registers[i32(RegisterType::ES)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::SS)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::DS)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::CS)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
 
-    asm8086::logClean("\n");
+    asm8086::logClean("");
 
     reg = ctx.registers[i32(RegisterType::IP)];
-    asm8086::logClean("\t%s: 0x%06X (%u)\n", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
 
     reg = ctx.registers[i32(RegisterType::FLAGS)];
     {
         char flagsBuf[asm8086::BUFFER_SIZE_FLAGS] = {};
         flagsToCptr(asm8086::Flags(reg.value), flagsBuf);
-        asm8086::logClean("\t%s: %s (%u)\n", regTypeToCptr(reg.type), flagsBuf, reg.value);
+        asm8086::logClean("\t%s: %s (%u)", regTypeToCptr(reg.type), flagsBuf, reg.value);
     }
 }
 

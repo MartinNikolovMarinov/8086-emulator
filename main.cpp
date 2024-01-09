@@ -176,7 +176,7 @@ i32 main(i32 argc, char const** argv) {
         return -1;
     }
 
-    if (!initCore(argc, argv)) {
+    if (!initCore()) {
         logErr("Failed to initialize.");
         return -1;
     }

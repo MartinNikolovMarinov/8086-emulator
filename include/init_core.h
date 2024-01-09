@@ -12,7 +12,7 @@
 
 using namespace coretypes;
 
-bool initCore(i32 argc, const char** argv);
+bool initCore();
 
 // Hashing functions for some core types:
 

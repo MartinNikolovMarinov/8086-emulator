@@ -39,7 +39,7 @@ bool core::eq(const u32& a, const u32& b) {
     return a == b;
 }
 
-bool initCore(i32 argc, const char** argv) {
+bool initCore() {
     using namespace asm8086;
 
     core::setGlobalAssertHandler([](const char* failedExpr, const char* file, i32 line, const char* funcName, const char* errMsg) {

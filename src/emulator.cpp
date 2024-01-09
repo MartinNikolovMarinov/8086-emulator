@@ -171,60 +171,60 @@ addr_off calcMemoryAddress(const EmulationContext& ctx, const Instruction& inst)
             case 0b000:
             {
                 // [BX + SI]
-                i16 bx = ctx.registers[i32(RegisterType::BX)].value;
-                i16 si = ctx.registers[i32(RegisterType::SI)].value;
+                i16 bx = i16(ctx.registers[i32(RegisterType::BX)].value);
+                i16 si = i16(ctx.registers[i32(RegisterType::SI)].value);
                 addr += bx + si;
                 break;
             }
             case 0b001:
             {
                 // [BX + DI]
-                i16 bx = ctx.registers[i32(RegisterType::BX)].value;
-                i16 di = ctx.registers[i32(RegisterType::DI)].value;
+                i16 bx = i16(ctx.registers[i32(RegisterType::BX)].value);
+                i16 di = i16(ctx.registers[i32(RegisterType::DI)].value);
                 addr += bx + di;
                 break;
             }
             case 0b010:
             {
                 // [BP + SI]
-                i16 bp = ctx.registers[i32(RegisterType::BP)].value;
-                i16 si = ctx.registers[i32(RegisterType::SI)].value;
+                i16 bp = i16(ctx.registers[i32(RegisterType::BP)].value);
+                i16 si = i16(ctx.registers[i32(RegisterType::SI)].value);
                 addr += bp + si;
                 break;
             }
             case 0b011:
             {
                 // [BP + DI]
-                i16 bp = ctx.registers[i32(RegisterType::BP)].value;
-                i16 di = ctx.registers[i32(RegisterType::DI)].value;
+                i16 bp = i16(ctx.registers[i32(RegisterType::BP)].value);
+                i16 di = i16(ctx.registers[i32(RegisterType::DI)].value);
                 addr += bp + di;
                 break;
             }
             case 0b100:
             {
                 // [SI]
-                i16 si = ctx.registers[i32(RegisterType::SI)].value;
+                i16 si = i16(ctx.registers[i32(RegisterType::SI)].value);
                 addr += si;
                 break;
             }
             case 0b101:
             {
                 // [DI]
-                i16 di = ctx.registers[i32(RegisterType::DI)].value;
+                i16 di = i16(ctx.registers[i32(RegisterType::DI)].value);
                 addr += di;
                 break;
             }
             case 0b110:
             {
                 // [BP]
-                i16 bp = ctx.registers[i32(RegisterType::BP)].value;
+                i16 bp = i16(ctx.registers[i32(RegisterType::BP)].value);
                 addr += bp;
                 break;
             }
             case 0b111:
             {
                 // [BX]
-                i16 bx = ctx.registers[i32(RegisterType::BX)].value;
+                i16 bx = i16(ctx.registers[i32(RegisterType::BX)].value);
                 addr += bx;
                 break;
             }
@@ -237,7 +237,7 @@ addr_off calcMemoryAddress(const EmulationContext& ctx, const Instruction& inst)
     }
     else if (is16bitDisplacement(inst.mod) || isDirect) {
         // [... + disp16]
-        i16 disp16 = combineWord(dispLow, dispHi);
+        i16 disp16 = i16(combineWord(dispLow, dispHi));
         addr += disp16;
     }
 
@@ -301,7 +301,7 @@ void emulateAdd(Dest& dst, Source& src, Register& flags) {
         overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(original) &&
                        isSignedBitSet(srcVal) != isSignedBitSet(next);
         auxCarryFlag = ((original & 0xF) + (srcVal & 0xF)) > 0xF;
-        i32 setBitsCount = core::intrin_numberOfSetBits(u32(lowPart(next)));
+        i32 setBitsCount = i32(core::intrin_numberOfSetBits(u32(lowPart(next))));
         parityFlag = (setBitsCount & 0x1) == 0;
     }
     else {
@@ -316,7 +316,7 @@ void emulateAdd(Dest& dst, Source& src, Register& flags) {
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(lowPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstLow);
             auxCarryFlag = ((lowPart(original) & 0xF) + (srcVal & 0xF)) > 0xF;
-            i32 setBitsCount = core::intrin_numberOfSetBits(u32(lowPart(next)));
+            i32 setBitsCount = i32(core::intrin_numberOfSetBits(u32(lowPart(next))));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
         else {
@@ -329,7 +329,7 @@ void emulateAdd(Dest& dst, Source& src, Register& flags) {
             overflowFlag = isSignedBitSet(srcVal) == isSignedBitSet(highPart(original)) &&
                            isSignedBitSet(srcVal) != isSignedBitSet(dstHigh);
             auxCarryFlag = ((highPart(original) & 0x0F) + (srcVal & 0x0F)) > 0xF;
-            i32 setBitsCount = core::intrin_numberOfSetBits(u32(highPart(next)));
+            i32 setBitsCount = i32(core::intrin_numberOfSetBits(u32(highPart(next))));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
 
@@ -367,7 +367,7 @@ void emulateSub(Dest& dst, Source& src, Register& flags) {
         overflowFlag = (isSignedBitSet(original) != isSignedBitSet(srcVal)) &&
                        (isSignedBitSet(original) != isSignedBitSet(next));
         auxCarryFlag = ((original & 0xF) - (srcVal & 0xF)) < 0;
-        i32 setBitsCount = core::intrin_numberOfSetBits(u32(lowPart(next)));
+        i32 setBitsCount = i32(core::intrin_numberOfSetBits(u32(lowPart(next))));
         parityFlag = (setBitsCount & 0x1) == 0;
     }
     else {
@@ -382,7 +382,7 @@ void emulateSub(Dest& dst, Source& src, Register& flags) {
             overflowFlag = (isSignedBitSet(lowPart(original)) != isSignedBitSet(srcVal)) &&
                            (isSignedBitSet(lowPart(original)) != isSignedBitSet(dstLow));
             auxCarryFlag = ((lowPart(original) & 0xF) - (srcVal & 0xF)) < 0;
-            i32 setBitsCount = core::intrin_numberOfSetBits(u32(lowPart(next)));
+            i32 setBitsCount = i32(core::intrin_numberOfSetBits(u32(lowPart(next))));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
         else {
@@ -395,7 +395,7 @@ void emulateSub(Dest& dst, Source& src, Register& flags) {
             overflowFlag = (isSignedBitSet(highPart(original)) != isSignedBitSet(srcVal)) &&
                            (isSignedBitSet(highPart(original)) != isSignedBitSet(dstHigh));
             auxCarryFlag = ((highPart(original) & 0x0F) - (srcVal & 0x0F)) < 0;
-            i32 setBitsCount = core::intrin_numberOfSetBits(u32(highPart(next)));
+            i32 setBitsCount = i32(core::intrin_numberOfSetBits(u32(highPart(next))));
             parityFlag = (setBitsCount & 0x1) == 0;
         }
 
@@ -485,9 +485,9 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             dst.isLow = isLowRegister(inst.reg);
             // Set source
             addr_off effectiveAddr = calcMemoryAddress(ctx, inst);
-            u16* srcMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
-            src.low = *(u8*)srcMemoryAddress;
-            src.hi = *((u8*)(srcMemoryAddress) + 1);
+            u16* srcMemoryAddress = reinterpret_cast<u16*>(ctx.memory + effectiveAddr);
+            src.low = *reinterpret_cast<u8*>(srcMemoryAddress);
+            src.hi = *(reinterpret_cast<u8*>(srcMemoryAddress) + 1);
             src.isLow = true;
             src.isWord = inst.s ? false : (inst.w == 1);
             break;
@@ -496,7 +496,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
         case Operands::Register_Memory: {
             // Set destination
             addr_off effectiveAddr = calcMemoryAddress(ctx, inst);
-            destMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            destMemoryAddress = reinterpret_cast<u16*>(ctx.memory + effectiveAddr);
             dst.target = destMemoryAddress;
             dst.isLow = dst.isWord;
             // Set source
@@ -511,7 +511,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
         case Operands::Memory_Immediate: {
             // Set destination
             addr_off effectiveAddr = calcMemoryAddress(ctx, inst);
-            destMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            destMemoryAddress = reinterpret_cast<u16*>(ctx.memory + effectiveAddr);
             dst.target = destMemoryAddress;
             dst.isLow = dst.isWord;
             // Set source
@@ -556,9 +556,9 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
                 instCpy.disp[1] = inst.data[1];
             }
             addr_off effectiveAddr = calcMemoryAddress(ctx, instCpy);
-            u16* srcMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
-            src.low = *(u8*)srcMemoryAddress;
-            src.hi = *((u8*)(srcMemoryAddress) + 1);
+            u16* srcMemoryAddress = reinterpret_cast<u16*>(ctx.memory + effectiveAddr);
+            src.low = *reinterpret_cast<u8*>(srcMemoryAddress);
+            src.hi = *(reinterpret_cast<u8*>(srcMemoryAddress) + 1);
             src.isLow = dst.isLow;
             src.isWord = dst.isWord;
             break;
@@ -574,7 +574,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
                 instCpy.disp[1] = inst.data[1];
             }
             addr_off effectiveAddr = calcMemoryAddress(ctx, instCpy);
-            destMemoryAddress = (u16*)(ctx.memory + effectiveAddr);
+            destMemoryAddress = reinterpret_cast<u16*>(ctx.memory + effectiveAddr);
             dst.target = destMemoryAddress;
             dst.isLow = true;
             // Set source
@@ -697,7 +697,7 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
         case InstType::UNKNOWN:  Assert(false, "Instruction not supported for emulation."); return;
     }
 
-    u16 nextIp = ip.value + deltaIp + inst.byteCount;
+    u16 nextIp = u16(ip.value + deltaIp + inst.byteCount);
 
     if (ctx.emuOpts & EmulationOpts::EMU_OPT_VERBOSE) {
         static i64 tmp_g_counter = 0;
@@ -746,7 +746,7 @@ bool nextInst(const EmulationContext& ctx, Instruction& inst) {
     if (idx == -1) {
         return false;
     }
-    inst = ctx.instructions[idx];
+    inst = ctx.instructions[addr_size(idx)];
     return true;
 }
 

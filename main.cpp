@@ -23,22 +23,22 @@ CommandLineArguments cmdArgs;
 void printUsage() {
     using namespace asm8086;
 
-    logCleanBold("Usage:");
-    logClean("  -f (required)       the binary file to use.");
-    logClean("  --exec              emulate the execution.");
-    logClean("  --verbose           print verbose information.");
-    logClean("  --dump-memory       dumps the memory to standard out. When this option is on, all other std output is off.");
-    logClean("  -dump-start         the start address of the memory dump. Requires dump-memory to be set to true.");
-    logClean("                      If not specified, the default is 0.");
-    logClean("                      Must be less than dump-end.");
-    logClean("  -dump-end           the end address of the memory dump. Requires dump-memory to be set to true.");
-    logClean("                      If not specified, the default is 1024*1024.");
-    logClean("                      Must be greater than dump-start.");
-    logClean("  -imm-values-fmt     the format to use when printing immediate values.");
-    logClean("                      0 - is the default.");
-    logClean("                      1 - use hex format.");
-    logClean("                      2 - use signed format.");
-    logClean("                      3 - use unsigned format.");
+    writeLineBold("Usage:");
+    writeLine("  -f (required)       the binary file to use.");
+    writeLine("  --exec              emulate the execution.");
+    writeLine("  --verbose           print verbose information.");
+    writeLine("  --dump-memory       dumps the memory to standard out. When this option is on, all other std output is off.");
+    writeLine("  -dump-start         the start address of the memory dump. Requires dump-memory to be set to true.");
+    writeLine("                      If not specified, the default is 0.");
+    writeLine("                      Must be less than dump-end.");
+    writeLine("  -dump-end           the end address of the memory dump. Requires dump-memory to be set to true.");
+    writeLine("                      If not specified, the default is 1024*1024.");
+    writeLine("                      Must be greater than dump-start.");
+    writeLine("  -imm-values-fmt     the format to use when printing immediate values.");
+    writeLine("                      0 - is the default.");
+    writeLine("                      1 - use hex format.");
+    writeLine("                      2 - use signed format.");
+    writeLine("                      3 - use unsigned format.");
 }
 
 bool parseCmdArguments(i32 argc, char const** argv) {
@@ -127,46 +127,46 @@ void dumpMemory(u8* memory, u32 start, u32 end) {
 void printRegisterState(asm8086::EmulationContext& ctx) {
     using RegisterType = asm8086::RegisterType;
 
-    asm8086::logClean("Final Registers:");
+    asm8086::writeLine("Final Registers:");
 
     auto reg = ctx.registers[i32(RegisterType::AX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::BX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::CX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::DX)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::SP)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::BP)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::SI)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::DI)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
 
-    asm8086::logClean("");
+    asm8086::writeLine("");
 
     reg = ctx.registers[i32(RegisterType::ES)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::SS)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::DS)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
     reg = ctx.registers[i32(RegisterType::CS)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
 
-    asm8086::logClean("");
+    asm8086::writeLine("");
 
     reg = ctx.registers[i32(RegisterType::IP)];
-    asm8086::logClean("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
+    asm8086::writeLine("\t%s: 0x%06X (%u)", regTypeToCptr(reg.type), reg.value, reg.value);
 
     reg = ctx.registers[i32(RegisterType::FLAGS)];
     {
         char flagsBuf[asm8086::BUFFER_SIZE_FLAGS] = {};
         flagsToCptr(asm8086::Flags(reg.value), flagsBuf);
-        asm8086::logClean("\t%s: %s (%u)", regTypeToCptr(reg.type), flagsBuf, reg.value);
+        asm8086::writeLine("\t%s: %s (%u)", regTypeToCptr(reg.type), flagsBuf, reg.value);
     }
 }
 
@@ -202,7 +202,7 @@ i32 main(i32 argc, char const** argv) {
     core::StrBuilder sb;
     if (!cmdArgs.execFlag || cmdArgs.isVerbose()) {
         asm8086::encodeAsm8086(sb, ctx);
-        asm8086::logClean(sb.view().data());
+        asm8086::writeLine(sb.view().data());
     }
 
     if (cmdArgs.execFlag) {
@@ -214,9 +214,9 @@ i32 main(i32 argc, char const** argv) {
             emuCtx.emuOpts = asm8086::EmulationOpts(emuCtx.emuOpts | asm8086::EmulationOpts::EMU_OPT_VERBOSE);
         }
 
-        if (cmdArgs.isVerbose()) asm8086::logClean("");
+        if (cmdArgs.isVerbose()) asm8086::writeLine("");
         asm8086::emulate(emuCtx);
-        if (cmdArgs.isVerbose()) asm8086::logClean("");
+        if (cmdArgs.isVerbose()) asm8086::writeLine("");
 
         if (cmdArgs.dumpMemory) {
             dumpMemory(emuCtx.memory, cmdArgs.dumpStart, cmdArgs.dumpEnd);

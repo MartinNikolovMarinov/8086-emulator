@@ -710,23 +710,23 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             detail::encodeBasicInstruction(sb, inst, ctx.decodingOpts);
             const char* encodedInst = sb.view().buff;
 
-            logCleanBoldNoSpace("(%lld) %s", ++tmp_g_counter, encodedInst);
+            writeDirectBold("(%lld) %s", ++tmp_g_counter, encodedInst);
 
             if (destRegister) {
                 constexpr const char* fmtCptr = " ; %s:  0x%X-> 0x%X, ip:  0x%X-> 0x%X, flags: %s";
                 const char* rtype = regTypeToCptr(destRegister->type);
-                logClean(fmtCptr, rtype, old, destRegister->value, ip.value, nextIp, flagsBuf);
+                writeLine(fmtCptr, rtype, old, destRegister->value, ip.value, nextIp, flagsBuf);
             }
             else if (destMemoryAddress) {
                 constexpr const char* fmtCptr = " ; [0x%06X]:  0x%X-> 0x%X, ip:  0x%X-> 0x%X, flags: %s";
                 addr_off targetAddrOff = addr_off(reinterpret_cast<u8*>(destMemoryAddress) - ctx.memory);
-                logClean(fmtCptr, targetAddrOff, old, *destMemoryAddress, ip.value, nextIp, flagsBuf);
+                writeLine(fmtCptr, targetAddrOff, old, *destMemoryAddress, ip.value, nextIp, flagsBuf);
             }
         }
         else {
-            logCleanBold("(%lld) %s", ++tmp_g_counter, instTypeToCptr(inst.type));
-            logClean(" -> ip: 0x%X->0x%X, flags: %s", ip.value, nextIp, flagsBuf);
-            logClean("");
+            writeLineBold("(%lld) %s", ++tmp_g_counter, instTypeToCptr(inst.type));
+            writeLine(" -> ip: 0x%X->0x%X, flags: %s", ip.value, nextIp, flagsBuf);
+            writeLine("");
         }
     }
 
@@ -759,7 +759,7 @@ void emulate(EmulationContext& ctx) {
         // Print the instruction info:
         char info[BUFFER_SIZE_INST_INFO_OUT] = {};
         instructionToInfoCptr(inst, info);
-        logClean("%s\n", info);
+        writeLine("%s\n", info);
 #endif
         emulateNext(ctx, inst);
     }

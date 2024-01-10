@@ -79,7 +79,7 @@ void __log(LogLevel level, LogSpecialMode mode, const char* funcName, const char
     }
 }
 
-void logClean(const char* format, ...) {
+void writeLine(const char* format, ...) {
     va_list args;
     va_start(args, format);
     vsnprintf(loggingBuffer, BUFFER_SIZE, format, args);
@@ -88,7 +88,7 @@ void logClean(const char* format, ...) {
     printf("%s\n", loggingBuffer);
 }
 
-void logCleanNoSpace(const char* format, ...) {
+void writeDirect(const char* format, ...) {
     va_list args;
     va_start(args, format);
     vsnprintf(loggingBuffer, BUFFER_SIZE, format, args);
@@ -97,7 +97,7 @@ void logCleanNoSpace(const char* format, ...) {
     printf("%s", loggingBuffer);
 }
 
-void logCleanBold(const char* format, ...) {
+void writeLineBold(const char* format, ...) {
     va_list args;
     va_start(args, format);
     vsnprintf(loggingBuffer, BUFFER_SIZE, format, args);
@@ -106,7 +106,7 @@ void logCleanBold(const char* format, ...) {
     printf(ANSI_BOLD("%s\n"), loggingBuffer);
 }
 
-void logCleanBoldNoSpace(const char* format, ...) {
+void writeDirectBold(const char* format, ...) {
     va_list args;
     va_start(args, format);
     vsnprintf(loggingBuffer, BUFFER_SIZE, format, args);

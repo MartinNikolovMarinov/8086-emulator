@@ -36,10 +36,10 @@ void muteLogger(bool mute);
 #define logErr(format, ...)   __log(asm8086::LogLevel::L_ERROR,   asm8086::LogSpecialMode::NONE, __func__, format, ##__VA_ARGS__)
 #define logFatal(format, ...) __log(asm8086::LogLevel::L_FATAL,   asm8086::LogSpecialMode::NONE, __func__, format, ##__VA_ARGS__)
 
-void logClean(const char* format, ...);
-void logCleanNoSpace(const char* format, ...);
-void logCleanBold(const char* format, ...);
-void logCleanBoldNoSpace(const char* format, ...);
+void writeLine(const char* format, ...);
+void writeDirect(const char* format, ...);
+void writeLineBold(const char* format, ...);
+void writeDirectBold(const char* format, ...);
 
 } // namespace stlv
 

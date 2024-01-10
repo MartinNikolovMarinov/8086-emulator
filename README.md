@@ -11,6 +11,7 @@ The project utilizes `cmake` for building, making it the only build dependency. 
 To build the executables on Linux or Mac using gcc or clang:
 ```bash
 git clone  https://github.com/MartinNikolovMarinov/8086-emulator.git
+git submodule update --init --recursive
 cd 8086-emulator
 mkdir build
 cd build
@@ -21,6 +22,7 @@ make -j
 To build the executables on Windows using MSVC:
 ```bash
 git clone  https://github.com/MartinNikolovMarinov/8086-emulator.git
+git submodule update --init --recursive
 cd 8086-emulator
 mkdir build
 cd build

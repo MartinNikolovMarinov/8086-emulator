@@ -732,9 +732,8 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             }
         }
         else {
-            writeLineBold("(%lld) %s", ++tmp_g_counter, instTypeToCptr(inst.type));
+            writeDirectBold("(%lld) %s", ++tmp_g_counter, instTypeToCptr(inst.type));
             writeLine(" -> ip: 0x%X->0x%X, flags: %s", ip.value, nextIp, flagsBuf);
-            writeLine("");
         }
     }
 
@@ -767,7 +766,7 @@ void emulate(EmulationContext& ctx) {
         // Print the instruction info:
         char info[BUFFER_SIZE_INST_INFO_OUT] = {};
         instructionToInfoCptr(inst, info);
-        writeLine("%s\n", info);
+        writeLine("%s", info);
 #endif
         emulateNext(ctx, inst);
     }

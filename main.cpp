@@ -214,7 +214,6 @@ i32 main(i32 argc, char const** argv) {
             emuCtx.emuOpts = asm8086::EmulationOpts(emuCtx.emuOpts | asm8086::EmulationOpts::EMU_OPT_VERBOSE);
         }
 
-        if (cmdArgs.isVerbose()) asm8086::writeLine("");
         asm8086::emulate(emuCtx);
         if (cmdArgs.isVerbose()) asm8086::writeLine("");
 

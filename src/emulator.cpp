@@ -37,11 +37,18 @@ char* flagsToCptr(Flags f, char* buffer) {
     return buffer;
 }
 
+namespace {
+
+u8 g_memory[EMULATOR_MEMORY_SIZE];
+
+} // namespace
+
 EmulationContext createEmulationCtx(core::Arr<Instruction>&& instructions, EmulationOpts options) {
     EmulationContext ctx;
     ctx.instructions = core::move(instructions);
     ctx.emuOpts = options;
-    core::memset(ctx.memory, 0, EmulationContext::MEMORY_SIZE);
+    ctx.memory = g_memory;
+    core::memset(ctx.memory, 0, EMULATOR_MEMORY_SIZE);
     for (addr_size i = 0; i < addr_size(RegisterType::SENTINEL); i++) {
         auto& reg = ctx.registers[i];
         reg.type = RegisterType(i);
@@ -242,7 +249,7 @@ addr_off calcMemoryAddress(const EmulationContext& ctx, const Instruction& inst)
     }
 
     // User bug:
-    Panic(addr >= 0 && addr_size(addr) < EmulationContext::MEMORY_SIZE - 1, "Indexing memory out of bounds.");
+    Panic(addr >= 0 && addr_size(addr) < EMULATOR_MEMORY_SIZE - 1, "Indexing memory out of bounds.");
     return addr;
 }
 

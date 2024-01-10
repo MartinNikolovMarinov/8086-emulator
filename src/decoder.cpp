@@ -256,30 +256,30 @@ Instruction decodeInstruction(core::Arr<u8>& bytes, DecodingContext& ctx) {
     auto decodeFromDisplacements = [](auto& _bytes, addr_off idx, const FieldDisplacements& fd, Instruction& inst) {
         i8 ibc = 0;
         if (fd.d.byteIdx >= 0) {
-            ibc = core::max(ibc, fd.d.byteIdx);
+            ibc = core::core_max(ibc, fd.d.byteIdx);
             inst.d = (_bytes[addr_size(idx + ibc)] & fd.d.mask) >> fd.d.offset;
         }
         if (fd.s.byteIdx >= 0) {
-            ibc = core::max(ibc, fd.s.byteIdx);
+            ibc = core::core_max(ibc, fd.s.byteIdx);
             inst.s = (_bytes[addr_size(idx + ibc)] & fd.s.mask) >> fd.s.offset;
         }
         if (fd.w.offset >= 0) {
-            ibc = core::max(ibc, fd.w.byteIdx);
+            ibc = core::core_max(ibc, fd.w.byteIdx);
             inst.w = (_bytes[addr_size(idx + ibc)] & fd.w.mask) >> fd.w.offset;
         }
         if (fd.mod.byteIdx >= 0) {
-            ibc = core::max(ibc, fd.mod.byteIdx);
+            ibc = core::core_max(ibc, fd.mod.byteIdx);
             inst.mod = Mod((_bytes[addr_size(idx + ibc)] & fd.mod.mask) >> fd.mod.offset);
         }
         else {
             inst.mod = Mod::NONE_SENTINEL;
         }
         if (fd.reg.byteIdx >= 0) {
-            ibc = core::max(ibc, fd.reg.byteIdx);
+            ibc = core::core_max(ibc, fd.reg.byteIdx);
             inst.reg = (_bytes[addr_size(idx + ibc)] & fd.reg.mask) >> fd.reg.offset;
         }
         if (fd.rm.byteIdx >= 0) {
-            ibc = core::max(ibc, fd.rm.byteIdx);
+            ibc = core::core_max(ibc, fd.rm.byteIdx);
             inst.rm = (_bytes[addr_size(idx + ibc)] & fd.rm.mask) >> fd.rm.offset;
         }
 

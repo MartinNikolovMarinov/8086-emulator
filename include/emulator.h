@@ -62,13 +62,14 @@ enum EmulationOpts : u32 {
     EMU_OPT_VERBOSE = 1 << 0,
 };
 
+constexpr static addr_size EMULATOR_MEMORY_SIZE = core::MEGABYTE;
+
 struct EmulationContext {
-    constexpr static addr_size MEMORY_SIZE = core::MEGABYTE;
     EmulationOpts emuOpts = EMU_OPT_NONE;
     DecodingOpts decodingOpts = DEC_OP_NONE;
     core::Arr<Instruction> instructions;
     Register registers[i32(RegisterType::SENTINEL)];
-    u8 memory[MEMORY_SIZE];
+    u8* memory = nullptr;
 
     core::StrBuilder<> __verbosecity_buff;
 };

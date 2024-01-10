@@ -124,7 +124,7 @@ Final Registers:
 
 # Loop Example
 
-A more interesting example which adds 10 to the bx register using a counter cx starting from 3 and looping util cx becomes 0:
+Here's a more interesting example demonstrating a loop that adds 10 to the bx register. The loop uses the cx register as a counter, starting from 3 and iterating until cx reaches 0:
 ```asm
 bits 16
 
@@ -180,6 +180,60 @@ Final Registers:
 ```
 
 # Image Generation Example
+
+Here's an example demonstrating how to generate a 64x64 image using assembly language:
+
+```asm
+bits 16
+
+; Start image after one row, to avoid overwriting our code!
+mov bp, 64*4
+
+mov dx, 0
+y_loop_start:
+
+	mov cx, 0
+	x_loop_start:
+		; Fill pixel
+		mov word [bp + 0], cx ; Red
+		mov word [bp + 2], dx ; Blue
+		mov byte [bp + 3], 255 ; Alpha
+
+		; Advance pixel location
+		add bp, 4
+
+		; Advance X coordinate and loop
+		add cx, 1
+		cmp cx, 64
+		jnz x_loop_start
+
+	; Advance Y coordinate and loop
+	add dx, 1
+	cmp dx, 64
+	jnz y_loop_start
+```
+
+When executed with specific commands, it dumps the emulator's memory to a raw image data file:
+```bash
+./emulator -f example.asm.o --exec --dump-memory -dump-start 256 > image.data
+```
+This command creates a raw image data file (`image.data`). You can open this file in GIMP or any other software that supports raw image data.
+
+## Viewing the image with GIMP
+
+Drag and droping the `image.data` file in gimp will trigger this prompt:
+
+![gimp dialog](docs/open_raw_data_image_with_gimp.png)
+
+Select these:
+* Image type - RGB Alpha
+* Width - 64
+* Height - 64
+* Offset - If the dump doesn't start from 256, an offset of 256 should be set, otherwise leave as 0. The first row is reserved for the program bytes in this example.
+
+The final result should look like this:
+
+![final result](docs/final_image_result.png)
 
 # Acknowledgments
 

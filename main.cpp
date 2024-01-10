@@ -4,6 +4,66 @@
 #include <emulator.h>
 
 #include <stdio.h>
+#include <iostream>
+
+
+// TODO:
+// General list of unfinished things, that would be easy to do:
+//
+// * I should load the instruction bytes into memory as well. Then fix the terrible linear search for jump instructions.
+// * The encoder has some bugs, where it does not encode instruction sizes (word/byte keywords) correctly.
+// * Better error handling should not allow any crashes, at least in the decoder/encoder logic.
+// * Support encoding and decoding for the entire 8086 instruction set. This is a bit tedious, but shouldn't be hard at
+//   this point. All the facilities are there.
+// * Segment register to memory and memory to segment register instructions should be implemented.
+//   This should be very easy.
+// * Trap, interrupt and direction FLAGS are missing.
+// * The emulator should be able to handle processor control instructions. Most of them are quite simple:
+//    * clc - just clear the carry flag
+//    * cmc - just toggle the carry flag
+//    * stc - just set the carry flag
+//    * cld - set the direction flag to 0, the direction flag is not used yet
+//    * std - set the direction flag to 1, the direction flag is not used yet
+//    * cli - clear the interrupt flag, interrupts are not used yet
+//    * sti - set the interrupt flag, interrupts are not used yet
+//    * hlt - just exit the emulator
+//    * esc - nothing to do for esc really. Unless I decide to implement an external FPU unit emulator, or somthing even crazier.
+//    * lock - this is used in multi-processor systems, so not really applicable for an emulator.
+//    * segment - override prefix. This one is probably the hardest because it requires a full implementation of the
+//      8086 memory addressing mechanisms.
+//
+// TODO2:
+// Features missing from the emulator:
+//
+// * Procedures - would be nice to have enough instruction support to create a procedure calling convention.
+// * Addressing of the full Megabyte of memory - this requires a full implementation of 8086 memory addressing. Which is
+//   significant amount of work for little educational benefits, because modern hardware does not use a similar model.
+// * String operation commands - I don't think I will be supporting strings for the forseeable future.
+// * Interrupts - calling operating system interupts requires an operating system :) This could however be used for
+//   printing to std in and out. Maybe implementing just that one interupt would be cool.
+// * Other missing instruction that would be necessary for an actually usable emulator:
+//    * Data Transfer:
+//        * in/out - input/output to/from a port
+//        * lea - load effective address
+//        * push/pop - push/pop a value from the stack
+//        * xchg - exchange the contents of two registers
+//    * Arithmetic:
+//        * inc/dec - increment/decrement a register
+//        * mul/imul - multiply a register by another register or a value
+//        * div/idiv - divide a register by another register or a value
+//    * Logical:
+//        * all logic instructions are kinda necessary for a complete emulator.
+//    * String manipulation:
+//        * rep - repeat the next instruction
+//        * movs - move a string
+//        * cmps - compare two strings
+//        * scas - scan a string
+//        * lods - load a string
+//        * stds - store a string
+//     * Control Transfer (these are a necessary requiremnt, since they are used for procedure calls):
+//        * call - call a procedure
+//        * ret - return from a procedure
+//        * jmp - long jump to a label
 
 struct CommandLineArguments {
     core::StrBuilder<> fileName;
@@ -48,7 +108,6 @@ bool parseCmdArguments(i32 argc, char const** argv) {
         parser.allowUnknownFlags(true);
 
         parser.setFlagString(&cmdArgs.fileName, core::sv("f"), true);
-        parser.setFlagBool(&cmdArgs.dumpMemory, core::sv("dump-memory"), false);
         parser.setFlagUint32(&cmdArgs.dumpStart, core::sv("dump-start"), false, [](void* a) -> bool {
             u32 v = *reinterpret_cast<u32*>(a);
             return (v < cmdArgs.dumpEnd);
@@ -80,6 +139,9 @@ bool parseCmdArguments(i32 argc, char const** argv) {
                 }
                 else if (arg.eq(core::sv("verbose"))) {
                     cmdArgs.verboseFlag = true;
+                }
+                else if (arg.eq(core::sv("dump-memory"))) {
+                    cmdArgs.dumpMemory = true;
                 }
 
                 return true;
@@ -117,11 +179,7 @@ void debugPrintCmdArguments(CommandLineArguments& args) {
 }
 
 void dumpMemory(u8* memory, u32 start, u32 end) {
-    i64 bytesWritten;
-    core::FileDesc standardOut;
-    standardOut.handle = reinterpret_cast<void*>(core::STDOUT);
-    core::fileWrite(standardOut, memory + start, addr_size(end - start));
-    Assert(bytesWritten == end);
+    std::cout.write(reinterpret_cast<char*>(memory),  end - start);
 }
 
 void printRegisterState(asm8086::EmulationContext& ctx) {

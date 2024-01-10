@@ -721,19 +721,19 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             writeDirectBold("(%lld) %s", ++tmp_g_counter, encodedInst);
 
             if (destRegister) {
-                constexpr const char* fmtCptr = " ; %s:  0x%X-> 0x%X, ip:  0x%X-> 0x%X, flags: %s";
+                constexpr const char* fmtCptr = " ; %s:  0x%X -> 0x%X, ip:  0x%X -> 0x%X, flags: %s";
                 const char* rtype = regTypeToCptr(destRegister->type);
                 writeLine(fmtCptr, rtype, old, destRegister->value, ip.value, nextIp, flagsBuf);
             }
             else if (destMemoryAddress) {
-                constexpr const char* fmtCptr = " ; [0x%06X]:  0x%X-> 0x%X, ip:  0x%X-> 0x%X, flags: %s";
+                constexpr const char* fmtCptr = " ; [0x%06X]:  0x%X -> 0x%X, ip:  0x%X -> 0x%X, flags: %s";
                 addr_off targetAddrOff = addr_off(reinterpret_cast<u8*>(destMemoryAddress) - ctx.memory);
                 writeLine(fmtCptr, targetAddrOff, old, *destMemoryAddress, ip.value, nextIp, flagsBuf);
             }
         }
         else {
             writeDirectBold("(%lld) %s", ++tmp_g_counter, instTypeToCptr(inst.type));
-            writeLine(" -> ip: 0x%X->0x%X, flags: %s", ip.value, nextIp, flagsBuf);
+            writeLine(" -> ip: 0x%X -> 0x%X, flags: %s", ip.value, nextIp, flagsBuf);
         }
     }
 

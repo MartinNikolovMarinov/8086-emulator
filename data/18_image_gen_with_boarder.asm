@@ -30,10 +30,10 @@ mov bx, bp
 mov cx, 62
 outline_loop_start:
 
-	mov byte [bp + 1], 255 ; Top line
+	mov byte [bp + 1], 255 			 ; Top line
 	mov byte [bp + 61*64*4 + 1], 255 ; Bottom line
-	mov byte [bx + 1], 255 ; Left line
-	mov byte [bx + 61*4 + 1], 255 ; Right  line
+	mov byte [bx + 1], 255 			 ; Left line
+	mov byte [bx + 61*4 + 1], 255 	 ; Right  line
 
 	add bp, 4
 	add bx, 4*64

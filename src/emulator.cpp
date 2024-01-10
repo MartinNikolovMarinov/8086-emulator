@@ -668,6 +668,15 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
             }
             break;
         }
+        case InstType::LOOP:
+        {
+            Register& cx = ctx.registers[i32(RegisterType::CX)];
+            cx.value--; // Decrement CX. NOTE: Interestingly, this should not set any flags!
+            if (cx.value != 0) {
+                deltaIp += i8(inst.data[0]);
+            }
+            break;
+        }
 
         case InstType::JL:       [[fallthrough]];
         case InstType::JNGE:     [[fallthrough]];
@@ -689,7 +698,6 @@ void emulateNext(EmulationContext& ctx, const Instruction& inst) {
         case InstType::JPO:      [[fallthrough]];
         case InstType::JNO:      [[fallthrough]];
         case InstType::JNS:      [[fallthrough]];
-        case InstType::LOOP:     [[fallthrough]];
         case InstType::LOOPE:    [[fallthrough]];
         case InstType::LOOPZ:    [[fallthrough]];
         case InstType::JCXZ:     [[fallthrough]];

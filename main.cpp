@@ -179,7 +179,7 @@ void debugPrintCmdArguments(CommandLineArguments& args) {
 }
 
 void dumpMemory(u8* memory, u32 start, u32 end) {
-    std::cout.write(reinterpret_cast<char*>(memory),  end - start);
+    std::cout.write(reinterpret_cast<char*>(memory + start),  end - start);
 }
 
 void printRegisterState(asm8086::EmulationContext& ctx) {
